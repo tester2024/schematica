@@ -17,6 +17,16 @@ A session model supports incremental appends, undo/redo, block palettes,
 versioned block catalogs, and multi-view PNG previews for the agent to verify
 its work.
 
+Two storage backends are supported:
+- **Dense** (`VoxelGrid`, default): a single contiguous `np.uint16` array. Best
+  for small/medium builds (up to ~256³) where you want maximum speed and
+  simplicity.
+- **Chunked** (`ChunkedGrid`): sparse chunk-backed storage that only allocates
+  chunks containing non-air voxels. Use for **big maps** (100+ chunks, terrain,
+  full biomes) so memory cost scales with built volume, not grid extent. A
+  160×64×160 map with a 20-voxel cube uses 12 chunks (~98 KB) instead of 3.2 MB
+  dense; a 1600×320×1600 mega-map is addressable without OOM.
+
 ## When to use this skill
 
 Trigger this skill whenever the user:
@@ -34,6 +44,28 @@ Trigger this skill whenever the user:
 Do **not** use this skill for Minecraft Bedrock, runtime world editing via
 protocol packets, or rendering/export of `.mcstructure` (Bedrock) — only Java
 Sponge `.schem` is supported on day one.
+
+## Big-map support (chunked backend)
+
+For maps spanning 100+ chunks (terrain, biomes, large settlements), create
+the session in chunked mode. Only chunks containing non-air voxels are
+allocated; shape `add`/`subtract`/`paint` evaluate the mask chunk-by-chunk
+using each shape's `bounds()` so per-op cost scales with touched chunks, not
+total grid volume. The Sponge exporter streams chunked grids without ever
+materialising a full dense array.
+
+```python
+# Library
+s = Session.new((160, 64, 160), chunked=True, chunk_size=16)
+```
+```
+# CLI
+session.new size=160x64x160 chunked=true chunk_size=16
+```
+
+`stats` reports `chunks`, `chunk_size`, and `memory_bytes` for chunked
+sessions. The dense and chunked backends produce byte-identical `.schem`
+output for the same build (verified by `test_export_chunked_matches_dense`).
 
 ## How to use this skill
 
@@ -127,7 +159,7 @@ Load these on demand for detailed information:
 it into context unless patching. Key modules:
 
 - `schematica.blocks` — `Block`, `BlockRegistry`, `BlockDef`, `BlockStateSchema`
-- `schematica.core` — `VoxelGrid`, `Palette`
+- `schematica.core` — `VoxelGrid`, `Palette`, `ChunkedGrid` (sparse big-map backend)
 - `schematica.shapes.primitives` — `Box`, `Sphere`, `Ellipsoid`, `Cylinder`, `Cone`, `Pyramid`, `Torus`, `Dome`, `Helix`, `Arch`, `Spiral`, `Staircase`, `Plane`, `Wedge`, `Line` (15 shapes)
 - `schematica.shapes.boolean` — `Union`, `Intersect`, `Subtract`, `Xor`
 - `schematica.shapes.transforms` — `Translated`, `Mirror`, `Rotated90`, `Array`, `NoiseDeformed`, `Shell`
@@ -247,7 +279,9 @@ write_sponge(s.grid, "boulder.schem")
 ### Important conventions
 
 - **Coordinate system**: `grid[x, y, z]` with `y` up. Shape `mask(shape)`
-  returns a boolean numpy array of the target grid's shape.
+  returns a boolean numpy array of the target grid's shape. Shapes also
+  implement `bounds(grid_shape)` returning the inclusive bbox where their mask
+  could be True, enabling the chunked backend to skip untouched chunks.
 - **Palette index 0 is always air**; an all-zero grid is empty.
 - **Blockstate strings**: `minecraft:oak_log[axis=y]`. `Block.parse` round-trips
   them. `BlockRegistry.resolve` fills defaults; `validate` rejects unknown states.

@@ -4,6 +4,8 @@ Palette index 0 is always air by convention so an all-zero grid is empty.
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 from ..blocks.block import AIR, Block
 
 
@@ -37,7 +39,7 @@ class Palette:
     def __len__(self) -> int:
         return len(self._blocks)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Block]:
         return iter(self._blocks)
 
     def blocks(self) -> list[Block]:

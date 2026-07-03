@@ -18,10 +18,10 @@ from .palette import Palette
 class VoxelGrid:
     shape: tuple[int, int, int]
     palette: Palette = field(default_factory=Palette)
-    data: np.ndarray = field(default=None)  # type: ignore[assignment]
+    data: np.ndarray = field(default_factory=lambda: np.zeros((1, 1, 1), dtype=np.uint16))
 
     def __post_init__(self) -> None:
-        if self.data is None:
+        if self.data is None or self.data.shape != self.shape:
             self.data = np.zeros(self.shape, dtype=np.uint16)
 
     @classmethod
