@@ -7,7 +7,7 @@ flagged suspicious usage). Codes are stable strings the agent can match on.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 Severity = Literal["error", "warn"]
 
@@ -23,7 +23,7 @@ class CheckResult:
         return self.severity == "error"
 
 
-def _coord_tuple(s: str | tuple) -> tuple[int, int, int] | None:
+def _coord_tuple(s: str | tuple[int, int, int]) -> tuple[int, int, int] | None:
     if isinstance(s, (tuple, list)) and len(s) == 3:
         try:
             return tuple(int(p) for p in s)  # type: ignore[return-value]
@@ -50,7 +50,7 @@ def _known_axis_value(value: str) -> bool:
     return value.lower() in {"x", "y", "z"}
 
 
-def _parse_blockstate_check(s: str, registry) -> tuple[object, str | None]:
+def _parse_blockstate_check(s: str, registry: Any) -> tuple[object, str | None]:
     """Return (block_or_None, error_or_None). Validates states when registry present."""
     from ..blocks.block import Block
     try:
@@ -69,7 +69,7 @@ def _parse_blockstate_check(s: str, registry) -> tuple[object, str | None]:
 
 
 def check_session_new(size_str: str, version: str,
-                      registry) -> list[CheckResult]:
+                      registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     # size accepts "WxHxD" or "W,H,D" - normalize to commas then parse.
     shape = _coord_tuple(size_str.replace("x", ",") if isinstance(size_str, str) else size_str)
@@ -93,7 +93,7 @@ def check_session_new(size_str: str, version: str,
     return out
 
 
-def _available_versions(registry) -> set[str]:
+def _available_versions(registry: Any) -> set[str]:
     from ..blocks.registry import BlockRegistry
     try:
         return set(BlockRegistry.list_versions())
@@ -102,7 +102,7 @@ def _available_versions(registry) -> set[str]:
 
 
 def check_add_box(frm: str, to: str, block: str, hollow: bool,
-                  session, registry) -> list[CheckResult]:
+                  session: Any, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     a = _coord_tuple(frm)
     b = _coord_tuple(to)
@@ -125,7 +125,7 @@ def check_add_box(frm: str, to: str, block: str, hollow: bool,
     return out
 
 
-def check_subtract_box(frm: str, to: str, session) -> list[CheckResult]:
+def check_subtract_box(frm: str, to: str, session: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     a = _coord_tuple(frm)
     b = _coord_tuple(to)
@@ -143,7 +143,7 @@ def check_subtract_box(frm: str, to: str, session) -> list[CheckResult]:
 
 
 def check_add_sphere(center: str, r: float, block: str, hollow: bool,
-                     session, registry) -> list[CheckResult]:
+                     session: Any, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     c = _coord_tuple(center)
     if c is None:
@@ -167,7 +167,7 @@ def check_add_sphere(center: str, r: float, block: str, hollow: bool,
 
 
 def check_add_cylinder(center: str, r: float, h: int, block: str, hollow: bool,
-                       session, registry) -> list[CheckResult]:
+                       session: Any, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     c = _coord_tuple(center)
     if c is None:
@@ -189,7 +189,7 @@ def check_add_cylinder(center: str, r: float, h: int, block: str, hollow: bool,
 
 
 def check_add_dome(center: str, r: float, block: str, hollow: bool,
-                   session, registry) -> list[CheckResult]:
+                   session: Any, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     c = _coord_tuple(center)
     if c is None:
@@ -204,7 +204,7 @@ def check_add_dome(center: str, r: float, block: str, hollow: bool,
 
 
 def check_add_helix(center: str, r: float, y0: int, y1: int, turns: float,
-                    block: str, session, registry) -> list[CheckResult]:
+                    block: str, session: Any, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     c = _coord_tuple(center)
     if c is None:
@@ -223,7 +223,7 @@ def check_add_helix(center: str, r: float, y0: int, y1: int, turns: float,
 
 
 def check_add_arch(center: str, z0: int, z1: int, r: float, thickness: float,
-                   block: str, session, registry) -> list[CheckResult]:
+                   block: str, session: Any, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     c = _coord_tuple(center)
     if c is None:
@@ -244,7 +244,7 @@ def check_add_arch(center: str, z0: int, z1: int, r: float, thickness: float,
 
 def check_add_staircase(corner: str, y1: int, step_width: int, step_depth: int,
                         step_height: int, axis: str, block: str,
-                        session, registry) -> list[CheckResult]:
+                        session: Any, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     c = _coord_tuple(corner)
     if c is None:
@@ -265,7 +265,7 @@ def check_add_staircase(corner: str, y1: int, step_width: int, step_depth: int,
     return out
 
 
-def check_subtract_sphere(center: str, r: float, session) -> list[CheckResult]:
+def check_subtract_sphere(center: str, r: float, session: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     c = _coord_tuple(center)
     if c is None:
@@ -277,7 +277,7 @@ def check_subtract_sphere(center: str, r: float, session) -> list[CheckResult]:
     return out
 
 
-def check_subtract_cylinder(center: str, r: float, h: int, session) -> list[CheckResult]:
+def check_subtract_cylinder(center: str, r: float, h: int, session: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     c = _coord_tuple(center)
     if c is None:
@@ -289,7 +289,7 @@ def check_subtract_cylinder(center: str, r: float, h: int, session) -> list[Chec
     return out
 
 
-def check_paint_box(frm: str, to: str, block: str, session, registry) -> list[CheckResult]:
+def check_paint_box(frm: str, to: str, block: str, session: Any, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     a = _coord_tuple(frm)
     b = _coord_tuple(to)
@@ -308,7 +308,7 @@ def check_paint_box(frm: str, to: str, block: str, session, registry) -> list[Ch
 
 
 def check_add_cone(center: str, r_base: float, y_base: int, y_apex: int,
-                   block: str, session, registry) -> list[CheckResult]:
+                   block: str, session: Any, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     c = _coord_tuple(center)
     if c is None:
@@ -324,7 +324,7 @@ def check_add_cone(center: str, r_base: float, y_base: int, y_apex: int,
 
 
 def check_add_ellipsoid(center: str, rx: float, ry: float, rz: float,
-                        block: str, hollow: bool, session, registry) -> list[CheckResult]:
+                        block: str, hollow: bool, session: Any, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     c = _coord_tuple(center)
     if c is None:
@@ -339,7 +339,7 @@ def check_add_ellipsoid(center: str, rx: float, ry: float, rz: float,
 
 
 def check_add_pyramid(center: str, base_half: int, y_base: int, y_apex: int,
-                      block: str, session, registry) -> list[CheckResult]:
+                      block: str, session: Any, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     c = _coord_tuple(center)
     if c is None:
@@ -356,7 +356,7 @@ def check_add_pyramid(center: str, base_half: int, y_base: int, y_apex: int,
 
 
 def check_add_torus(center: str, R: float, r: float,
-                    block: str, session, registry) -> list[CheckResult]:
+                    block: str, session: Any, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     c = _coord_tuple(center)
     if c is None:
@@ -373,7 +373,7 @@ def check_add_torus(center: str, R: float, r: float,
     return out
 
 
-def check_add_line(frm: str, to: str, block: str, session, registry) -> list[CheckResult]:
+def check_add_line(frm: str, to: str, block: str, session: Any, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     a = _coord_tuple(frm)
     b = _coord_tuple(to)
@@ -387,7 +387,7 @@ def check_add_line(frm: str, to: str, block: str, session, registry) -> list[Che
 
 
 def check_add_wedge(frm: str, to: str, split_axis: str,
-                    block: str, session, registry) -> list[CheckResult]:
+                    block: str, session: Any, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     a = _coord_tuple(frm)
     b = _coord_tuple(to)
@@ -410,7 +410,7 @@ def check_add_wedge(frm: str, to: str, split_axis: str,
 
 def check_add_spiral(center: str, r_inner: float, r_outer: float,
                      y0: int, y1: int, turns: float,
-                     block: str, session, registry) -> list[CheckResult]:
+                     block: str, session: Any, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     c = _coord_tuple(center)
     if c is None:
@@ -429,7 +429,7 @@ def check_add_spiral(center: str, r_inner: float, r_outer: float,
 
 
 def check_add_plane(axis: str, coord: int, thickness: int,
-                    block: str, session, registry) -> list[CheckResult]:
+                    block: str, session: Any, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     if axis not in ("x", "y", "z"):
         out.append(CheckResult("error", "bad_axis", f"axis={axis!r} must be x, y, or z"))
@@ -445,7 +445,7 @@ def check_add_plane(axis: str, coord: int, thickness: int,
     return out
 
 
-def check_subtract_dome(center: str, r: float, session) -> list[CheckResult]:
+def check_subtract_dome(center: str, r: float, session: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     c = _coord_tuple(center)
     if c is None:
@@ -456,7 +456,7 @@ def check_subtract_dome(center: str, r: float, session) -> list[CheckResult]:
 
 
 def check_subtract_pyramid(center: str, base_half: int, y_base: int, y_apex: int,
-                           session) -> list[CheckResult]:
+                           session: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     c = _coord_tuple(center)
     if c is None:
@@ -470,7 +470,7 @@ def check_subtract_pyramid(center: str, base_half: int, y_base: int, y_apex: int
 
 
 def check_paint_sphere(center: str, r: float, block: str,
-                       session, registry) -> list[CheckResult]:
+                       session: Any, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     c = _coord_tuple(center)
     if c is None:
@@ -481,7 +481,7 @@ def check_paint_sphere(center: str, r: float, block: str,
     return out
 
 
-def check_replace(src: str, dst: str, registry) -> list[CheckResult]:
+def check_replace(src: str, dst: str, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     out.extend(_check_block(src, registry))
     out.extend(_check_block(dst, registry))
@@ -491,7 +491,7 @@ def check_replace(src: str, dst: str, registry) -> list[CheckResult]:
     return out
 
 
-def check_fill(block: str, registry) -> list[CheckResult]:
+def check_fill(block: str, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     out.extend(_check_block(block, registry))
     if block.rstrip("]").lower() in ("minecraft:air", "air"):
@@ -515,14 +515,44 @@ def check_rotate(times: int, axes: str) -> list[CheckResult]:
     return out
 
 
+def check_generate_tree(at: str, height: int, session: Any) -> list[CheckResult]:
+    out: list[CheckResult] = []
+    c = _coord_tuple(at)
+    if c is None:
+        out.append(CheckResult("error", "bad_coords", f"at={at!r} did not parse to x,y,z"))
+    if height <= 0:
+        out.append(CheckResult("error", "nonpositive_height",
+                               f"tree height={height} must be positive"))
+    if c is not None and any(not (0 <= c[i] < session.grid.shape[i]) for i in range(3)):
+        out.append(CheckResult("warn", "out_of_bounds",
+                               f"tree base {c} is outside grid {session.grid.shape}"))
+    return out
+
+
+def check_generate_wfc(frm: str, to: str, session: Any) -> list[CheckResult]:
+    out: list[CheckResult] = []
+    a = _coord_tuple(frm)
+    b = _coord_tuple(to)
+    if a is None:
+        out.append(CheckResult("error", "bad_coords", f"frm={frm!r} did not parse"))
+    if b is None:
+        out.append(CheckResult("error", "bad_coords", f"to={to!r} did not parse"))
+    if a and b:
+        dims = _bounds(a, b)
+        if any(d < 0 for d in dims):
+            out.append(CheckResult("error", "inverted_bounds",
+                                   f"wfc frm={a} to={b} has inverted bounds"))
+    return out
+
+
 def check_export(path: str) -> list[CheckResult]:
     out: list[CheckResult] = []
     if not path:
         out.append(CheckResult("error", "empty_path", "export path is empty"))
-    if not path.lower().endswith(".schem"):
+    if not any(path.lower().endswith(ext) for ext in (".schem", ".schematic", ".litematic")):
         out.append(CheckResult("warn", "bad_extension",
-                               f"path {path!r} does not end in .schem; "
-                               f"WorldEdit/FAWE may not recognize it"))
+                               f"path {path!r} does not end in .schem/.schematic/.litematic; "
+                               f"WorldEdit/FAWE/Litematica may not recognize it"))
     return out
 
 
@@ -556,7 +586,7 @@ def check_preview(out_dir: str) -> list[CheckResult]:
     return out
 
 
-def _check_block(block: str, registry) -> list[CheckResult]:
+def _check_block(block: str, registry: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     if not block:
         out.append(CheckResult("error", "empty_block", "block name is empty"))
@@ -586,7 +616,7 @@ def _check_air_block(block: str, op: str) -> list[CheckResult]:
     return []
 
 
-def _check_outside(frm: str, to: str, session) -> list[CheckResult]:
+def _check_outside(frm: str, to: str, session: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     a = _coord_tuple(frm)
     b = _coord_tuple(to)

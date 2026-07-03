@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 
 from ..session.commands import COMMANDS
 from ..session.session import Session
@@ -18,7 +19,7 @@ from . import validation as v
 from .parser import parse_line
 
 
-def _coerce(value: str, kind: str):
+def _coerce(value: str, kind: str) -> object:
     if kind == "int":
         return int(value)
     if kind == "float":
@@ -32,7 +33,7 @@ def _coerce(value: str, kind: str):
     return value
 
 
-def _run_checks(name: str, kwargs: dict, session: Session) -> list[v.CheckResult]:
+def _run_checks(name: str, kwargs: dict[str, Any], session: Session) -> list[v.CheckResult]:
     """Dispatch to the per-command validator. Returns a list of CheckResult."""
     reg = getattr(session, "registry", None)
     if name == "session.new":
@@ -153,13 +154,35 @@ def _run_checks(name: str, kwargs: dict, session: Session) -> list[v.CheckResult
                                     kwargs["block"], session, reg)
     if name == "replace":
         return v.check_replace(kwargs["src"], kwargs["dst"], reg)
+    if name == "replace.bulk":
+        return []
+    if name == "replace.by_name":
+        return []
+    if name == "replace.pattern":
+        return []
+    if name == "retexture":
+        return []
+    if name == "retexture.map":
+        return []
+    if name == "texture.palette":
+        return v.check_generate_wfc(kwargs["frm"], kwargs["to"], session)
     if name == "fill":
         return v.check_fill(kwargs["block"], reg)
     if name == "mirror":
         return v.check_mirror(kwargs["axis"])
     if name == "rotate":
         return v.check_rotate(kwargs["times"], kwargs.get("axes", "xy"))
+    if name == "generate.terrain":
+        return []
+    if name == "generate.tree":
+        return v.check_generate_tree(kwargs["at"], kwargs.get("height", 6), session)
+    if name == "generate.wfc":
+        return v.check_generate_wfc(kwargs["frm"], kwargs["to"], session)
     if name == "export":
+        return v.check_export(kwargs["path"])
+    if name == "export.mcedit":
+        return v.check_export(kwargs["path"])
+    if name == "export.litematic":
         return v.check_export(kwargs["path"])
     if name == "save":
         return v.check_save(kwargs["path"])
@@ -187,7 +210,7 @@ def dispatch(session: Session, line: str) -> str:
         spec = COMMANDS.get(alt)
         if spec is None:
             return f"unknown command: {parsed.name}" + backslash_warn
-    kwargs: dict = {}
+    kwargs: dict[str, Any] = {}
     positional = parsed.args.pop("__positional__", "")
     pos_list = positional.split() if positional else []
     pos_idx = 0

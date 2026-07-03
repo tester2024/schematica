@@ -30,7 +30,7 @@ class CommandSpec:
 
 def _coord_tuple(s: str) -> tuple[int, int, int]:
     if isinstance(s, (tuple, list)):
-        return tuple(int(p) for p in s)  # type: ignore[return-value]
+        return tuple(int(p) for p in s)
     s = s.strip().lstrip("(").rstrip(")")
     parts = s.replace(",", " ").split()
     if len(parts) != 3:
@@ -43,10 +43,15 @@ def _size_tuple(s: str) -> tuple[int, int, int]:
 
 
 def cmd_session_new(s: Session, size: str, version: str = "1.20.1",
-                    fill: str = "minecraft:air") -> str:
-    new = Session.new(_size_tuple(size), version=version, fill=__import__("schematica.blocks.block", fromlist=["Block"]).Block.parse(fill))
+                    fill: str = "minecraft:air", chunked: bool = False,
+                    chunk_size: int = 16) -> str:
+    from ..blocks.block import Block as _Block
+    new = Session.new(_size_tuple(size), version=version,
+                      fill=_Block.parse(fill), chunked=chunked,
+                      chunk_size=chunk_size)
     s.__dict__.update(new.__dict__)
-    return f"new session {size} v{version}"
+    mode = "chunked" if chunked else "dense"
+    return f"new session {size} v{version} ({mode})"
 
 
 def cmd_add_box(s: Session, frm: str, to: str, block: str = "minecraft:stone",
@@ -258,6 +263,92 @@ def cmd_replace(s: Session, src: str, dst: str) -> str:
     return f"replaced {n} {src}->{dst}"
 
 
+def cmd_replace_bulk(s: Session, mapping: str) -> str:
+    """mapping is comma-separated 'src=dst' pairs, e.g. 'stone=diorite,dirt=grass_block'."""
+    from ..generators.replace import replace_bulk
+    pairs: dict[str, str] = {}
+    for part in mapping.split(","):
+        if "=" not in part:
+            continue
+        k, _, v = part.partition("=")
+        pairs[k.strip()] = v.strip()
+    n = replace_bulk(s.grid, pairs)
+    return f"bulk replaced {n} ({len(pairs)} mappings)"
+
+
+def cmd_replace_by_name(s: Session, src_name: str, dst: str) -> str:
+    """Replace every block with name == src_name regardless of state."""
+    from ..generators.replace import replace_by_name
+    n = replace_by_name(s.grid, src_name, dst)
+    return f"replaced-by-name {n} {src_name}->{dst}"
+
+
+def cmd_replace_pattern(s: Session, src: str, dst: str,
+                        neighbours: str = "") -> str:
+    """Replace src with dst where neighbour constraints hold.
+
+    neighbours is a ';'-separated list of 'dx,dy,dz=block' specs, e.g.
+    '0,1,0=minecraft:air;0,-1,0=*' meaning "air above, any-solid below".
+    """
+    from ..generators.replace import NeighbourSpec, replace_pattern
+    specs: list[NeighbourSpec] = []
+    if neighbours:
+        for part in neighbours.split(";"):
+            part = part.strip()
+            if not part or "=" not in part:
+                continue
+            offset_s, _, block = part.partition("=")
+            dx, dy, dz = (int(v) for v in offset_s.split(","))
+            specs.append(NeighbourSpec((dx, dy, dz), block.strip()))
+    n = replace_pattern(s.grid, src, dst, neighbours=specs or None)
+    return f"pattern-replaced {n} {src}->{dst}"
+
+
+def cmd_retexture(s: Session, property: str, value: str,
+                  name: str = "") -> str:
+    """Set a blockstate property on all blocks that have it.
+
+    e.g. retexture property=axis value=x name=minecraft:oak_log
+    """
+    from ..generators.retexture import retexture
+    n = retexture(s.grid, property, value, name=name or None)
+    return f"retextured {n} ({property}={value})"
+
+
+def cmd_retexture_map(s: Session, property: str, mapping: str,
+                      name: str = "") -> str:
+    """Remap a state property across many values. mapping is 'x=y,y=z,z=x'."""
+    from ..generators.retexture import retexture_map
+    pairs: dict[object, object] = {}
+    for part in mapping.split(","):
+        if "=" not in part:
+            continue
+        k, _, v = part.partition("=")
+        pairs[k.strip()] = v.strip()
+    n = retexture_map(s.grid, property, pairs, name=name or None)
+    return f"retextured {n} ({property} remap)"
+
+
+def cmd_texture_palette(s: Session, frm: str, to: str,
+                        blocks: str, weights: str = "",
+                        noise: str = "perlin", scale: float = 0.15,
+                        seed: int = 0) -> str:
+    """Paint a region with a noise-driven texture palette.
+
+    blocks is '+ -separated list of blockstate strings.
+    weights is optional '+ -separated list of relative weights.
+    """
+    from ..generators.texture import TexturePalette, apply_texture
+    bl = [b.strip() for b in blocks.split("+") if b.strip()]
+    w = [float(x) for x in weights.split("+") if x.strip()] if weights else []
+    tp = TexturePalette(blocks=bl, weights=w or [1.0] * len(bl),
+                        noise=noise, scale=scale, seed=seed)  # type: ignore[arg-type]
+    x0, y0, z0 = _coord_tuple(frm)
+    x1, y1, z1 = _coord_tuple(to)
+    n = apply_texture(s, tp, (x0, y0, z0), (x1, y1, z1))
+    return f"texture-painted {n} ({len(bl)} blocks, {noise})"
+
+
 def cmd_undo(s: Session) -> str:
     return "undo ok" if s.undo() else "nothing to undo"
 
@@ -273,8 +364,12 @@ def cmd_clear(s: Session) -> str:
 
 def cmd_stats(s: Session) -> str:
     st = s.stats()
-    return (f"shape={st['shape']} vol={st['volume']} solid={st['solid']} "
+    base = (f"shape={st['shape']} vol={st['volume']} solid={st['solid']} "
             f"palette={st['palette_size']}")
+    if st.get("chunked"):
+        base += (f" chunks={st['chunks']} chunk_size={st['chunk_size']} "
+                 f"mem={st['memory_bytes']}B")
+    return base
 
 
 def cmd_preview(s: Session, out_dir: str = "previews") -> str:
@@ -287,6 +382,18 @@ def cmd_export(s: Session, path: str) -> str:
     from ..export.sponge import write_sponge
     p = write_sponge(s.grid, path)
     return f"exported {p}"
+
+
+def cmd_export_mcedit(s: Session, path: str) -> str:
+    from ..export.mcedit import write_mcedit
+    p = write_mcedit(s.grid, path)
+    return f"exported (mcedit) {p}"
+
+
+def cmd_export_litematic(s: Session, path: str) -> str:
+    from ..export.litematic import write_litematic
+    p = write_litematic(s.grid, path)
+    return f"exported (litematic) {p}"
 
 
 def cmd_save(s: Session, path: str) -> str:
@@ -316,11 +423,65 @@ def cmd_rotate(s: Session, times: int, axes: str = "xy") -> str:
     return f"rotated {times} {axes}"
 
 
+def cmd_generate_terrain(s: Session, seed: int = 0, amplitude: int = 8,
+                         scale: float = 0.06,
+                         top: str = "minecraft:grass_block",
+                         filler: str = "minecraft:dirt") -> str:
+    from ..generators.templates import apply_terrain
+    apply_terrain(s, seed=seed, amplitude=amplitude, scale=scale,
+                  top=top, filler=filler)
+    return f"terrain seed={seed} amp={amplitude}"
+
+
+def cmd_generate_tree(s: Session, at: str, height: int = 6,
+                      trunk: str = "minecraft:oak_log",
+                      leaves: str = "minecraft:oak_leaves") -> str:
+    from ..generators.templates import apply_tree
+    x, y, z = _coord_tuple(at)
+    apply_tree(s, x=x, z=z, height=height, trunk=trunk, leaves=leaves)
+    return f"tree @ {at} h={height}"
+
+
+def cmd_generate_wfc(s: Session, frm: str, to: str,
+                     tileset: str = "mossy_ruins",
+                     seed: int = 0) -> str:
+    """Run WFC over a sub-box and place the resulting blocks."""
+    from ..generators.wfc import run_wfc, tileset_mossy_ruins
+    x0, y0, z0 = _coord_tuple(frm)
+    x1, y1, z1 = _coord_tuple(to)
+    x0, x1 = min(x0, x1), max(x0, x1)
+    y0, y1 = min(y0, y1), max(y0, y1)
+    z0, z1 = min(z0, z1), max(z0, z1)
+    shape = (x1 - x0 + 1, y1 - y0 + 1, z1 - z0 + 1)
+    if any(d <= 0 for d in shape):
+        return "error: wfc box must have positive volume"
+    if tileset == "mossy_ruins":
+        ts = tileset_mossy_ruins()
+    elif tileset == "wildcard":
+        # Wildcard needs a block list; pick a sensible default palette.
+        from ..generators.wfc import Tile, TileSet
+        ts = TileSet([Tile("minecraft:stone"), Tile("minecraft:cobblestone"),
+                       Tile("minecraft:dirt")])
+    else:
+        return f"error: unknown tileset {tileset!r}"
+    blocks = run_wfc(shape, ts, seed=seed)
+    from ..blocks.block import Block
+    for xx in range(shape[0]):
+        for yy in range(shape[1]):
+            for zz in range(shape[2]):
+                b = blocks[xx, yy, zz]
+                if b != "minecraft:air":
+                    s.grid.set(x0 + xx, y0 + yy, z0 + zz, Block.parse(b))
+    return f"wfc {frm}->{to} tileset={tileset} seed={seed}"
+
+
 COMMANDS: dict[str, CommandSpec] = {
     "session.new": CommandSpec("session.new", (
         ArgSpec("size", "str"), ArgSpec("version", "str", default="1.20.1", required=False),
         ArgSpec("fill", "block", default="minecraft:air", required=False),
-    ), cmd_session_new, "create a new session: size=16x16x16 version=1.20.1"),
+        ArgSpec("chunked", "bool", default=False, required=False),
+        ArgSpec("chunk_size", "int", default=16, required=False),
+    ), cmd_session_new, "create a new session: size=16x16x16 version=1.20.1 chunked=true chunk_size=16"),
     "add.box": CommandSpec("add.box", (
         ArgSpec("frm", "coords"), ArgSpec("to", "coords"),
         ArgSpec("block", "block", default="minecraft:stone", required=False),
@@ -447,6 +608,32 @@ COMMANDS: dict[str, CommandSpec] = {
     "replace": CommandSpec("replace", (
         ArgSpec("src", "block"), ArgSpec("dst", "block"),
     ), cmd_replace, "replace src dst"),
+    "replace.bulk": CommandSpec("replace.bulk", (
+        ArgSpec("mapping", "str"),
+    ), cmd_replace_bulk, "bulk replace mapping=stone=diorite,dirt=grass_block"),
+    "replace.by_name": CommandSpec("replace.by_name", (
+        ArgSpec("src_name", "str"), ArgSpec("dst", "block"),
+    ), cmd_replace_by_name, "replace all blocks named src_name regardless of state"),
+    "replace.pattern": CommandSpec("replace.pattern", (
+        ArgSpec("src", "block"), ArgSpec("dst", "block"),
+        ArgSpec("neighbours", "str", default="", required=False),
+    ), cmd_replace_pattern, "replace src with dst where neighbours match (dx,dy,dz=block;...)"),
+    "retexture": CommandSpec("retexture", (
+        ArgSpec("property", "str"), ArgSpec("value", "str"),
+        ArgSpec("name", "str", default="", required=False),
+    ), cmd_retexture, "set a blockstate property on all blocks that have it"),
+    "retexture.map": CommandSpec("retexture.map", (
+        ArgSpec("property", "str"), ArgSpec("mapping", "str"),
+        ArgSpec("name", "str", default="", required=False),
+    ), cmd_retexture_map, "remap a state property (x=y,y=z,z=x)"),
+    "texture.palette": CommandSpec("texture.palette", (
+        ArgSpec("frm", "coords"), ArgSpec("to", "coords"),
+        ArgSpec("blocks", "str"),
+        ArgSpec("weights", "str", default="", required=False),
+        ArgSpec("noise", "str", default="perlin", required=False),
+        ArgSpec("scale", "float", default=0.15, required=False),
+        ArgSpec("seed", "int", default=0, required=False),
+    ), cmd_texture_palette, "paint a region with a noise-driven texture palette"),
     "undo": CommandSpec("undo", (), cmd_undo, "undo last op"),
     "redo": CommandSpec("redo", (), cmd_redo, "redo"),
     "clear": CommandSpec("clear", (), cmd_clear, "clear grid"),
@@ -456,6 +643,10 @@ COMMANDS: dict[str, CommandSpec] = {
     ), cmd_preview, "render preview PNGs"),
     "export": CommandSpec("export", (ArgSpec("path", "str"),), cmd_export,
                           "export Sponge .schem"),
+    "export.mcedit": CommandSpec("export.mcedit", (ArgSpec("path", "str"),),
+                                  cmd_export_mcedit, "export legacy MCEdit .schematic"),
+    "export.litematic": CommandSpec("export.litematic", (ArgSpec("path", "str"),),
+                                      cmd_export_litematic, "export Litematica .litematic"),
     "save": CommandSpec("save", (ArgSpec("path", "str"),), cmd_save,
                        "save session"),
     "load": CommandSpec("load", (ArgSpec("path", "str"),), cmd_load,
@@ -466,4 +657,21 @@ COMMANDS: dict[str, CommandSpec] = {
     "rotate": CommandSpec("rotate", (
         ArgSpec("times", "int"), ArgSpec("axes", "str", default="xy", required=False),
     ), cmd_rotate, "rotate 90*times in xy/xz/yz plane"),
+    "generate.terrain": CommandSpec("generate.terrain", (
+        ArgSpec("seed", "int", default=0, required=False),
+        ArgSpec("amplitude", "int", default=8, required=False),
+        ArgSpec("scale", "float", default=0.06, required=False),
+        ArgSpec("top", "block", default="minecraft:grass_block", required=False),
+        ArgSpec("filler", "block", default="minecraft:dirt", required=False),
+    ), cmd_generate_terrain, "generate terrain seed=N amplitude=N"),
+    "generate.tree": CommandSpec("generate.tree", (
+        ArgSpec("at", "coords"), ArgSpec("height", "int", default=6, required=False),
+        ArgSpec("trunk", "block", default="minecraft:oak_log", required=False),
+        ArgSpec("leaves", "block", default="minecraft:oak_leaves", required=False),
+    ), cmd_generate_tree, "generate a tree at=X height=N"),
+    "generate.wfc": CommandSpec("generate.wfc", (
+        ArgSpec("frm", "coords"), ArgSpec("to", "coords"),
+        ArgSpec("tileset", "str", default="mossy_ruins", required=False),
+        ArgSpec("seed", "int", default=0, required=False),
+    ), cmd_generate_wfc, "wave function collapse fill frm=A to=B tileset=name"),
 }
