@@ -252,6 +252,91 @@ class Session:
         self._record(new)
         return int(np.count_nonzero(sel))
 
+    def clone_translate(self, frm: tuple[int, int, int], to: tuple[int, int, int],
+                        offset: tuple[int, int, int], *, count: int = 1,
+                        include_air: bool = False) -> int:
+        """Clone a source box by an offset one or more times.
+
+        ``count`` is the number of copies, not including the original source.
+        Air is skipped by default so cloning a corner build onto empty quadrants
+        does not accidentally erase existing work.
+        """
+        if count <= 0:
+            return 0
+        source = self._clone_source(frm, to, include_air=include_air)
+        dx, dy, dz = offset
+        targets: dict[tuple[int, int, int], int] = {}
+        for step in range(1, count + 1):
+            ox, oy, oz = dx * step, dy * step, dz * step
+            for x, y, z, value in source:
+                targets[(x + ox, y + oy, z + oz)] = value
+        return self._paste_palette_indices(targets)
+
+    def clone_cardinal(self, frm: tuple[int, int, int], to: tuple[int, int, int],
+                       center: tuple[float, float], *, include_air: bool = False) -> int:
+        """Clone a source box into the other three cardinal rotations around Y."""
+        source = self._clone_source(frm, to, include_air=include_air)
+        cx, cz = center
+        targets: dict[tuple[int, int, int], int] = {}
+        for x, y, z, value in source:
+            dx = x - cx
+            dz = z - cz
+            rotations = (
+                (cx - dz, cz + dx),
+                (cx - dx, cz - dz),
+                (cx + dz, cz - dx),
+            )
+            for rx, rz in rotations:
+                targets[(round(rx), y, round(rz))] = value
+        return self._paste_palette_indices(targets)
+
+    def _clone_source(self, frm: tuple[int, int, int], to: tuple[int, int, int], *,
+                      include_air: bool) -> list[tuple[int, int, int, int]]:
+        x0, y0, z0, x1, y1, z1 = _normalized_box(frm, to, self.grid.shape)
+        out: list[tuple[int, int, int, int]] = []
+        for x in range(x0, x1 + 1):
+            for y in range(y0, y1 + 1):
+                for z in range(z0, z1 + 1):
+                    value = _raw_index_at(self.grid, x, y, z)
+                    if include_air or value != 0:
+                        out.append((x, y, z, value))
+        return out
+
+    def _paste_palette_indices(self, targets: dict[tuple[int, int, int], int]) -> int:
+        sx, sy, sz = self.grid.shape
+        in_bounds = {
+            pos: value for pos, value in targets.items()
+            if 0 <= pos[0] < sx and 0 <= pos[1] < sy and 0 <= pos[2] < sz
+        }
+        if not in_bounds:
+            return 0
+        if self.is_chunked:
+            coords_list: list[tuple[int, int, int]] = []
+            old_values: list[int] = []
+            new_values: list[int] = []
+            for pos, value in in_bounds.items():
+                old = _raw_index_at(self.grid, *pos)
+                if old == value:
+                    continue
+                _set_raw_index_at(self._chunked, *pos, value)
+                coords_list.append(pos)
+                old_values.append(old)
+                new_values.append(value)
+            if coords_list:
+                coords = tuple(np.array([p[i] for p in coords_list], dtype=np.int64) for i in range(3))
+                self._record_chunk_delta(coords, np.array(old_values, dtype=np.uint16),
+                                         np.array(new_values, dtype=np.uint16))
+            return len(coords_list)
+        g = self._dense
+        new = g.data.copy()
+        for (x, y, z), value in in_bounds.items():
+            new[x, y, z] = value
+        changed = int(np.count_nonzero(g.data != new))
+        if changed == 0:
+            return 0
+        self._record(new)
+        return changed
+
     def fill_all(self, block: Block | str) -> Session:
         b = self._resolve(block)
         if self.is_chunked:
@@ -384,6 +469,38 @@ def _eval_shape_subgrid(shape: Shape, grid_shape: tuple[int, int, int],
     ox, oy, oz = origin
     sx, sy, sz = size
     return full[ox:ox + sx, oy:oy + sy, oz:oz + sz].copy()
+
+
+def _normalized_box(frm: tuple[int, int, int], to: tuple[int, int, int],
+                    shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+    lo = tuple(min(frm[i], to[i]) for i in range(3))
+    hi = tuple(max(frm[i], to[i]) for i in range(3))
+    if any(lo[i] < 0 or hi[i] >= shape[i] for i in range(3)):
+        raise ValueError(f"clone region {frm}->{to} is outside grid {shape}")
+    return lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]
+
+
+def _raw_index_at(grid: VoxelGrid | ChunkedGrid, x: int, y: int, z: int) -> int:
+    if isinstance(grid, VoxelGrid):
+        return int(grid.data[x, y, z])
+    cx, cy, cz = x // grid.chunk_size, y // grid.chunk_size, z // grid.chunk_size
+    arr = grid._chunks.get((cx, cy, cz))
+    if arr is None:
+        return 0
+    return int(arr[x % grid.chunk_size, y % grid.chunk_size, z % grid.chunk_size])
+
+
+def _set_raw_index_at(grid: ChunkedGrid, x: int, y: int, z: int, value: int) -> None:
+    cx, cy, cz = x // grid.chunk_size, y // grid.chunk_size, z // grid.chunk_size
+    if value == 0:
+        arr = grid._chunks.get((cx, cy, cz))
+        if arr is None:
+            return
+    else:
+        arr = grid._ensure_chunk(cx, cy, cz)
+    arr[x % grid.chunk_size, y % grid.chunk_size, z % grid.chunk_size] = value
+    if value == 0:
+        grid._drop_chunk_if_empty(cx, cy, cz)
 
 
 def _chunks_to_json(grid: ChunkedGrid) -> list[dict[str, Any]]:

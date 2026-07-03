@@ -1,11 +1,8 @@
 """Tests for Session + history."""
 from __future__ import annotations
 
-import numpy as np
-import pytest
-
 from schematica.session.session import Session
-from schematica.shapes.primitives import Box, Sphere
+from schematica.shapes.primitives import Box
 
 
 def test_session_new_air():
@@ -65,3 +62,25 @@ def test_session_paint_only_solid():
     s.paint(Box(0, 0, 0, 3, 3, 3), "minecraft:dirt")
     assert s.grid.count("minecraft:dirt") == 8
     assert s.grid.count("minecraft:stone") == 0
+
+
+def test_session_clone_translate_undo_redo():
+    s = Session.new((8, 4, 4))
+    s.add(Box(0, 0, 0, 0, 0, 0), "minecraft:stone")
+    n = s.clone_translate((0, 0, 0), (0, 0, 0), (2, 0, 0), count=2)
+    assert n == 2
+    assert s.grid.get(2, 0, 0).name == "minecraft:stone"
+    assert s.grid.get(4, 0, 0).name == "minecraft:stone"
+    assert s.undo()
+    assert s.grid.get(2, 0, 0).name == "minecraft:air"
+    assert s.redo()
+    assert s.grid.get(4, 0, 0).name == "minecraft:stone"
+
+
+def test_session_clone_cardinal():
+    s = Session.new((9, 2, 9))
+    s.add(Box(6, 0, 4, 6, 0, 4), "minecraft:stone")
+    n = s.clone_cardinal((6, 0, 4), (6, 0, 4), (4, 4))
+    assert n == 3
+    for pos in ((4, 0, 6), (2, 0, 4), (4, 0, 2)):
+        assert s.grid.get(*pos).name == "minecraft:stone"
