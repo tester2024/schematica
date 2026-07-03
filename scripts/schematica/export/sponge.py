@@ -9,15 +9,22 @@ Sponge v2 spec (data version 2):
     BlockData (byte array, varint-block-per-volume)
     Metadata (optional)
     Offset (int array of 3)
+
+Supports both ``VoxelGrid`` (dense) and ``ChunkedGrid`` (sparse). For chunked
+grids the encoder streams voxels in XZY order without ever allocating a full
+dense array: it stitches chunk-local arrays into the varint stream one Y-row
+at a time, keeping peak memory bounded by ``chunk_size**2``.
 """
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import nbtlib
 import numpy as np
 from nbtlib import Byte, ByteArray, Compound, Int, IntArray, List, Short
 
+from ..core.chunked import ChunkedGrid
 from ..core.voxel import VoxelGrid
 
 
@@ -33,13 +40,11 @@ def _varint_encode(value: int) -> bytes:
     return bytes(out)
 
 
-def _encode_block_data(grid: VoxelGrid) -> bytes:
+def _encode_block_data_dense(grid: VoxelGrid) -> bytes:
     """Encode palette indices in XZY order with per-block varint."""
-    # Sponge block ordering: for x in width: for y in height: for z in length
     data = grid.data
     sx, sy, sz = grid.shape
     out = bytearray()
-    # reshape to (y, z, x) ? Spec: index = (y*length + z)*width + x
     flat = np.zeros(sx * sy * sz, dtype=np.uint32)
     idx = 0
     for y in range(sy):
@@ -52,12 +57,55 @@ def _encode_block_data(grid: VoxelGrid) -> bytes:
     return bytes(out)
 
 
-def write_sponge(grid: VoxelGrid, path: str | Path, *, data_version: int = 3465,
-                 offset: tuple[int, int, int] = (0, 0, 0),
-                 metadata: dict | None = None) -> Path:
+def _encode_block_data_chunked(grid: ChunkedGrid) -> bytes:
+    """Stream XZY varint block data without materialising a full dense array.
+
+    Sponge ordering: index = (y*length + z)*width + x, i.e. outer y, then z,
+    then x. For each (y, z, x) we look up the chunk that owns (x, y, z); if the
+    chunk exists, read the local voxel; otherwise emit air (0).
+
+    To avoid per-voxel chunk lookups we iterate chunk-by-chunk in XZ stripes per
+    Y-row: build the Y-row's (sx, sz) plane from touched chunks, then emit in
+    the required order.
+    """
+    sx, sy, sz = grid.shape
+    cs = grid.chunk_size
+    out = bytearray()
+    # Pre-bucket chunks by cy for fast per-Y-row access.
+    chunks_by_cy: dict[int, dict[tuple[int, int], np.ndarray]] = {}
+    for (cx, cy, cz), arr in grid._chunks.items():
+        chunks_by_cy.setdefault(cy, {})[(cx, cz)] = arr
+    for y in range(sy):
+        cy = y // cs
+        ly = y % cs
+        row_chunks = chunks_by_cy.get(cy, {})
+        if not row_chunks:
+            # Whole Y-row is air.
+            out += b"\x00" * (sx * sz)
+            continue
+        # Build the (sx, sz) plane for this Y.
+        plane = np.zeros((sx, sz), dtype=np.uint16)
+        for (cx, cz), arr in row_chunks.items():
+            ox = cx * cs
+            oz = cz * cs
+            sx_a, sy_a, sz_a = arr.shape
+            if ly >= sy_a:
+                continue
+            plane[ox:ox + sx_a, oz:oz + sz_a] = arr[:, ly, :]
+        # Emit in z-outer, x-inner order.
+        for z in range(sz):
+            for x in range(sx):
+                out += _varint_encode(int(plane[x, z]))
+    return bytes(out)
+
+
+def write_sponge(grid: VoxelGrid | ChunkedGrid, path: str | Path, *, data_version: int = 3465,
+                  offset: tuple[int, int, int] = (0, 0, 0),
+                  metadata: dict[str, Any] | None = None) -> Path:
     """Write a Sponge schematic (.schem) for the given grid.
 
-    data_version 3465 ≈ MC 1.20.1.
+    data_version 3465 ≈ MC 1.20.1. Works with dense VoxelGrid or sparse
+    ChunkedGrid; the latter streams without a full dense allocation.
     """
     path = Path(path)
     sx, sy, sz = grid.shape
@@ -65,7 +113,10 @@ def write_sponge(grid: VoxelGrid, path: str | Path, *, data_version: int = 3465,
     palette_comp: dict[str, nbtlib.Int] = {}
     for i, b in enumerate(palette.blocks()):
         palette_comp[b.to_blockstate_str()] = Int(i)
-    block_bytes = _encode_block_data(grid)
+    if isinstance(grid, ChunkedGrid):
+        block_bytes = _encode_block_data_chunked(grid)
+    else:
+        block_bytes = _encode_block_data_dense(grid)
     root = Compound({
         "Schematic": Compound({
             "Version": Int(2),
@@ -86,7 +137,7 @@ def write_sponge(grid: VoxelGrid, path: str | Path, *, data_version: int = 3465,
     return path
 
 
-def _to_nbt(v):
+def _to_nbt(v: object) -> object:
     if isinstance(v, bool):
         return Byte(1 if v else 0)
     if isinstance(v, int):
