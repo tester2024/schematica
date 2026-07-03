@@ -1,6 +1,8 @@
 """Render VoxelGrid to PNG previews (top/front/right/iso) via matplotlib voxels."""
 from __future__ import annotations
 
+import hashlib
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -9,6 +11,9 @@ from ..blocks.block import Block
 from ..core.chunked import ChunkedGrid
 from ..core.palette import Palette
 from ..core.voxel import VoxelGrid
+
+_DENSE_VOXEL_RENDER_LIMIT = 96 ** 3
+_PROJECTED_MAX_DIM = 256
 
 # Hand-picked block colors for common blocks. Falls back to gray.
 _BLOCK_COLORS: dict[str, tuple[float, float, float]] = {
@@ -41,10 +46,10 @@ def _color_for(block: Block) -> tuple[float, float, float]:
     if c:
         return c
     # Hash name -> stable color
-    h = abs(hash(block.name)) % 0xFFFFFF
-    r = ((h >> 16) & 0xFF) / 255.0
-    g = ((h >> 8) & 0xFF) / 255.0
-    b = (h & 0xFF) / 255.0
+    digest = hashlib.blake2s(block.name.encode("utf-8"), digest_size=3).digest()
+    r = digest[0] / 255.0
+    g = digest[1] / 255.0
+    b = digest[2] / 255.0
     # lighten a bit
     return (min(r + 0.2, 1.0), min(g + 0.2, 1.0), min(b + 0.2, 1.0))
 
@@ -58,6 +63,14 @@ def _build_color_array(grid: VoxelGrid) -> np.ndarray:
         sel = grid.data == i
         rgba[sel] = (r, g, bcol, 1.0 if b.name != "minecraft:air" else 0.0)
     return rgba
+
+
+def _palette_color_array(palette: Palette) -> np.ndarray:
+    colors = np.zeros((len(palette), 4), dtype=float)
+    for i, b in enumerate(palette.blocks()):
+        r, g, bcol = _color_for(b)
+        colors[i] = (r, g, bcol, 0.0 if b.name == "minecraft:air" else 1.0)
+    return colors
 
 
 def _render_view(grid: VoxelGrid, elev: int, azim: int, out: Path, *, title: str,
@@ -90,11 +103,21 @@ def _render_view(grid: VoxelGrid, elev: int, azim: int, out: Path, *, title: str
 
 
 def preview(grid: VoxelGrid | ChunkedGrid, out_dir: str | Path,
-            views: tuple[str, ...] = ("top", "front", "right", "iso")) -> list[Path]:
+            views: tuple[str, ...] = ("top", "front", "right", "iso"), *,
+            max_voxels: int = _DENSE_VOXEL_RENDER_LIMIT,
+            max_dim: int = _PROJECTED_MAX_DIM) -> list[Path]:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     if isinstance(grid, ChunkedGrid):
-        return preview_chunked(grid, out_dir, views)
+        return preview_chunked(grid, out_dir, views, max_dim=max_dim)
+    if grid.volume > max_voxels:
+        warnings.warn(
+            f"grid volume {grid.volume} exceeds dense voxel preview limit {max_voxels}; "
+            f"using downsampled projected previews",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return _preview_projected_dense(grid, out_dir, views, max_dim=max_dim)
     views_map: dict[str, tuple[int, int]] = {
         "top": (90, -90),
         "front": (0, -90),
@@ -110,6 +133,61 @@ def preview(grid: VoxelGrid | ChunkedGrid, out_dir: str | Path,
     return paths
 
 
+def _preview_projected_dense(grid: VoxelGrid, out_dir: Path,
+                             views: tuple[str, ...], *, max_dim: int) -> list[Path]:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    ds = max(1, (max(grid.shape) + max_dim - 1) // max_dim)
+    colors = _palette_color_array(grid.palette)
+    paths: list[Path] = []
+    for v in views:
+        plane = _project_dense_indices(grid, v, ds)
+        img = colors[plane]
+        fig = plt.figure(figsize=(6, 6), dpi=100)
+        ax = fig.add_subplot(111)
+        ax.imshow(np.rot90(img), origin="upper")
+        ax.set_title(f"{v} projected (ds={ds})")
+        ax.axis("off")
+        out = out_dir / f"preview_{v}.png"
+        fig.savefig(out, bbox_inches="tight")
+        plt.close(fig)
+        paths.append(out)
+    return paths
+
+
+def _project_dense_indices(grid: VoxelGrid, view: str, ds: int) -> np.ndarray:
+    data = grid.data
+    sx, sy, sz = grid.shape
+    solid = data != 0
+    if view == "front":
+        has = solid.any(axis=2)
+        rev_depth = np.argmax(solid[:, :, ::-1], axis=2)
+        z_idx = sz - 1 - rev_depth
+        x_idx = np.arange(sx)[:, None]
+        y_idx = np.arange(sy)[None, :]
+        plane = data[x_idx, y_idx, z_idx]
+    elif view == "right":
+        has = solid.any(axis=0)
+        rev_depth = np.argmax(solid[::-1, :, :], axis=0)
+        x_idx = sx - 1 - rev_depth
+        y_idx = np.arange(sy)[:, None]
+        z_idx = np.arange(sz)[None, :]
+        plane = data[x_idx, y_idx, z_idx].T
+        has = has.T
+    else:
+        # Top and the large-grid iso fallback both use a top-down projection.
+        has = solid.any(axis=1)
+        rev_depth = np.argmax(solid[:, ::-1, :], axis=1)
+        y_idx = sy - 1 - rev_depth
+        x_idx = np.arange(sx)[:, None]
+        z_idx = np.arange(sz)[None, :]
+        plane = data[x_idx, y_idx, z_idx]
+    plane = np.where(has, plane, 0)
+    return plane[::ds, ::ds]
+
+
 def _color_array_from_palette(palette: Palette) -> dict[int, tuple[float, float, float, float]]:
     out: dict[int, tuple[float, float, float, float]] = {}
     for i, b in enumerate(palette.blocks()):
@@ -119,8 +197,8 @@ def _color_array_from_palette(palette: Palette) -> dict[int, tuple[float, float,
 
 
 def preview_chunked(grid: ChunkedGrid, out_dir: str | Path,
-                     views: tuple[str, ...] = ("top", "front", "right", "iso"),
-                     *, max_dim: int = 256) -> list[Path]:
+                      views: tuple[str, ...] = ("top", "front", "right", "iso"),
+                      *, max_dim: int = 256) -> list[Path]:
     """Render a ChunkedGrid without materialising a full dense array.
 
     Builds per-view 2D images by projecting touched chunks. ``max_dim``
@@ -135,13 +213,13 @@ def preview_chunked(grid: ChunkedGrid, out_dir: str | Path,
     out_dir.mkdir(parents=True, exist_ok=True)
     sx, sy, sz = grid.shape
     # Downsample factor so no rendered side exceeds max_dim.
-    ds = max(1, max(sx, sy, sz) // max_dim)
+    ds = max(1, (max(sx, sy, sz) + max_dim - 1) // max_dim)
     colors = _color_array_from_palette(grid.palette)
     paths: list[Path] = []
     view_specs = {
         "top": ("xz", "y", "top"),
-        "front": ("xz", "y", "front"),
-        "right": ("yz", "x", "right"),
+        "front": ("xy", "z", "front"),
+        "right": ("zy", "x", "right"),
         "iso": ("xz", "y", "iso"),
     }
     for v in views:
@@ -164,54 +242,38 @@ def _project_chunked(grid: ChunkedGrid, plane: str, depth_axis: str,
                      ds: int) -> np.ndarray:
     """Project touched chunks onto a 2D plane, downsampling by ``ds``.
 
-    plane is 'xz' (top/front) or 'yz' (right). depth_axis selects which axis
-    collapses ('y' for top, etc.) -- we use max-projection (frontmost solid
-    voxel wins) so the result looks like a silhouette.
+    Uses max-projection along ``depth_axis`` (frontmost solid voxel wins) so the
+    result is a bounded 2D silhouette even for very large sparse maps.
     """
     sx, sy, sz = grid.shape
     if plane == "xz":
-        w, h = sx // ds, sz // ds
-        img = np.zeros((w, h, 4), dtype=float)
-    else:  # yz
-        w, h = sy // ds, sz // ds
-        img = np.zeros((w, h, 4), dtype=float)
-    # Initialize with transparent.
+        w, h = sx, sz
+    elif plane == "xy":
+        w, h = sx, sy
+    elif plane == "zy":
+        w, h = sz, sy
+    else:
+        raise ValueError(f"unknown preview plane {plane!r}")
+    img = np.zeros(((w + ds - 1) // ds, (h + ds - 1) // ds, 4), dtype=float)
+    depth = np.full(img.shape[:2], -1, dtype=int)
     for (cx, cy, cz), arr in grid._chunks.items():
         cs = grid.chunk_size
         ox = cx * cs
         oy = cy * cs
         oz = cz * cs
-        sx_a, sy_a, sz_a = arr.shape
-        if plane == "xz":
-            # Collapse y; for each (x, z) pick the topmost non-air voxel.
-            for i in range(sx_a):
-                for k in range(sz_a):
-                    wx = (ox + i) // ds
-                    wz = (oz + k) // ds
-                    if wx >= w or wz >= h:
-                        continue
-                    col = img[wx, wz]
-                    if col[3] >= 1.0:
-                        continue
-                    # Find topmost solid in this column within the chunk.
-                    for j in range(sy_a - 1, -1, -1):
-                        v = int(arr[i, j, k])
-                        if v != 0:
-                            img[wx, wz] = colors.get(v, (0.5, 0.5, 0.5, 1.0))
-                            break
-        else:  # yz, collapse x
-            for j in range(sy_a):
-                for k in range(sz_a):
-                    wy = (oy + j) // ds
-                    wz = (oz + k) // ds
-                    if wy >= w or wz >= h:
-                        continue
-                    col = img[wy, wz]
-                    if col[3] >= 1.0:
-                        continue
-                    for i in range(sx_a - 1, -1, -1):
-                        v = int(arr[i, j, k])
-                        if v != 0:
-                            img[wy, wz] = colors.get(v, (0.5, 0.5, 0.5, 1.0))
-                            break
+        xs, ys, zs = np.nonzero(arr)
+        for lx, ly, lz in zip(xs, ys, zs, strict=False):
+            x = ox + int(lx)
+            y = oy + int(ly)
+            z = oz + int(lz)
+            if plane == "xz":
+                px, py = x // ds, z // ds
+            elif plane == "xy":
+                px, py = x // ds, y // ds
+            else:
+                px, py = z // ds, y // ds
+            d = {"x": x, "y": y, "z": z}[depth_axis]
+            if d >= depth[px, py]:
+                depth[px, py] = d
+                img[px, py] = colors.get(int(arr[lx, ly, lz]), (0.5, 0.5, 0.5, 1.0))
     return img
