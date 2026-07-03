@@ -68,3 +68,31 @@ def test_staircase_z_axis():
 def test_staircase_zero_rise_empty():
     m = Staircase(0, 5, 0, 5).mask((16, 16, 16))
     assert m.sum() == 0
+
+
+def test_cylinder_axis_x_horizontal():
+    from schematica.shapes.primitives import Cylinder
+    # axis=x: long axis runs along X; cross-section in (Y, Z) centered (cx,cz).
+    m = Cylinder(8, 8, 3, 2, 6, axis="x").mask((16, 16, 16))
+    # Should span X in [2..6], with circular cross-section radius 3 in Y/Z.
+    assert m[2, 8, 8]   # along-axis voxel at cross-section center
+    assert m[6, 8, 8]
+    assert not m[7, 8, 8]  # beyond along-axis extent
+    assert not m[2, 12, 8]  # beyond radius in Y
+
+
+def test_cylinder_axis_z_horizontal():
+    from schematica.shapes.primitives import Cylinder
+    m = Cylinder(8, 8, 3, 2, 6, axis="z").mask((16, 16, 16))
+    assert m[8, 8, 2]
+    assert m[8, 8, 6]
+    assert not m[8, 8, 7]
+    assert not m[12, 8, 2]  # beyond radius in X
+
+
+def test_cylinder_axis_y_still_works():
+    from schematica.shapes.primitives import Cylinder
+    m = Cylinder(8, 8, 3, 0, 5, axis="y").mask((16, 16, 16))
+    assert m[8, 0, 8]
+    assert m[8, 5, 8]
+    assert not m[8, 6, 8]

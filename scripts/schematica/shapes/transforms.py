@@ -5,7 +5,15 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .base import Shape
+from .base import Shape, bounds_default
+
+
+def _shape_bounds(s: Shape, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+    if hasattr(s, "bounds"):
+        b = s.bounds(grid_shape)
+        if b is not None:
+            return tuple(int(v) for v in b)  # type: ignore[return-value]
+    return bounds_default(grid_shape)
 
 
 @dataclass(frozen=True)
@@ -15,19 +23,48 @@ class Translated:
     dy: int
     dz: int
 
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        x0, y0, z0, x1, y1, z1 = _shape_bounds(self.shape, grid_shape)
+        return (int(max(x0 + self.dx, 0)), int(max(y0 + self.dy, 0)), int(max(z0 + self.dz, 0)),
+                int(min(x1 + self.dx, grid_shape[0] - 1)), int(min(y1 + self.dy, grid_shape[1] - 1)), int(min(z1 + self.dz, grid_shape[2] - 1)))
+
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         sx, sy, sz = shape
         dx, dy, dz = self.dx, self.dy, self.dz
-        # Build the shape's mask in a shifted canvas.
-        # Compute required extent, allocate, draw into it.
-        sub = self.shape.mask(shape)  # then roll within bounds
-        return np.roll(np.roll(np.roll(sub, dx, axis=0), dy, axis=1), dz, axis=2)
+        # Compute the shape's mask in a canvas large enough to hold the
+        # translated version, then copy only the in-bounds region. This avoids
+        # np.roll's wrap-around which would scatter voxels to the opposite edge.
+        x0 = max(dx, 0)
+        y0 = max(dy, 0)
+        z0 = max(dz, 0)
+        x1 = min(sx + dx, sx)
+        y1 = min(sy + dy, sy)
+        z1 = min(sz + dz, sz)
+        if x1 <= x0 or y1 <= y0 or z1 <= z0:
+            return np.zeros(shape, dtype=bool)
+        # Evaluate the shape over its own coords, then copy the sub-window.
+        # We evaluate at full grid size (shape unchanged), then slice the
+        # source window [max(-dx,0) : min(sx-dx, sx), ...] and place into
+        # [x0:x1, ...].
+        src = self.shape.mask(shape).astype(bool)
+        sx0 = max(-dx, 0)
+        sy0 = max(-dy, 0)
+        sz0 = max(-dz, 0)
+        sx1 = min(sx - dx, sx)
+        sy1 = min(sy - dy, sy)
+        sz1 = min(sz - dz, sz)
+        out = np.zeros(shape, dtype=bool)
+        out[x0:x1, y0:y1, z0:z1] = src[sx0:sx1, sy0:sy1, sz0:sz1]
+        return out
 
 
 @dataclass(frozen=True)
 class Mirror:
     shape: Shape
     axis: int  # 0=x,1=y,2=z
+
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        return _shape_bounds(self.shape, grid_shape)
 
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         return np.flip(self.shape.mask(shape), axis=self.axis).copy()
@@ -39,6 +76,9 @@ class Rotated90:
     shape: Shape
     times: int = 1
     axes: str = "xy"
+
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        return _shape_bounds(self.shape, grid_shape)
 
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         ax_map = {"xy": (0, 1), "xz": (0, 2), "yz": (1, 2)}
@@ -53,6 +93,15 @@ class Array:
     count: int
     axis: int  # 0,1,2
     spacing: int
+
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        x0, y0, z0, x1, y1, z1 = _shape_bounds(self.shape, grid_shape)
+        span = (self.count - 1) * self.spacing
+        if self.axis == 0:
+            return (x0, y0, z0, min(x1 + span, grid_shape[0] - 1), y1, z1)
+        if self.axis == 1:
+            return (x0, y0, z0, x1, min(y1 + span, grid_shape[1] - 1), z1)
+        return (x0, y0, z0, x1, y1, min(z1 + span, grid_shape[2] - 1))
 
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         out = np.zeros(shape, dtype=bool)
@@ -90,6 +139,16 @@ class NoiseDeformed:
     amplitude: int = 2
     scale: float = 0.1
     seed: int = 0
+
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        b = _shape_bounds(self.shape, grid_shape)
+        x0 = max(b[0] - self.amplitude, 0)
+        y0 = max(b[1] - self.amplitude, 0)
+        z0 = max(b[2] - self.amplitude, 0)
+        x1 = min(b[3] + self.amplitude, grid_shape[0] - 1)
+        y1 = min(b[4] + self.amplitude, grid_shape[1] - 1)
+        z1 = min(b[5] + self.amplitude, grid_shape[2] - 1)
+        return (x0, y0, z0, x1, y1, z1)
 
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         base = self.shape.mask(shape).astype(bool)
@@ -131,6 +190,9 @@ class Shell:
     shape: Shape
     thickness: int = 1
 
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        return _shape_bounds(self.shape, grid_shape)
+
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         base = self.shape.mask(shape).astype(bool)
         if self.thickness <= 0:
@@ -147,6 +209,6 @@ class Shell:
                     np.roll(eroded, 1, axis=1) & np.roll(eroded, -1, axis=1) &
                     np.roll(eroded, 1, axis=2) & np.roll(eroded, -1, axis=2)
                 )
-            return base & ~eroded
+            return np.asarray(base & ~eroded)
         eroded = _ndi.binary_erosion(base, iterations=self.thickness)
-        return base & ~eroded
+        return np.asarray(base & ~eroded)

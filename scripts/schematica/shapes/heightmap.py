@@ -18,6 +18,9 @@ class Heightmap:
     y_base: int = 0
     solid_below: bool = True  # fill from y_base upward (True) or just a shell (False)
 
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        return (0, self.y_base, 0, grid_shape[0] - 1, grid_shape[1] - 1, grid_shape[2] - 1)
+
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         sx, sy, sz = shape
         h = np.asarray(self.heights)
@@ -27,8 +30,8 @@ class Heightmap:
         hmap = h[X, Z]  # (sx,sy,sz)
         target_y = self.y_base + hmap
         if self.solid_below:
-            return Y < target_y
-        return Y == target_y
+            return np.asarray(Y < target_y)
+        return np.asarray(Y == target_y)
 
 
 def from_image(path: str, max_height: int = 64) -> Heightmap:

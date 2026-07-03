@@ -25,6 +25,42 @@ class Box:
     hollow: bool = False
     wall_thickness: int = 1
 
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        x0 = max(self.x0, 0)
+        y0 = max(self.y0, 0)
+        z0 = max(self.z0, 0)
+        x1 = min(self.x1, grid_shape[0] - 1)
+        y1 = min(self.y1, grid_shape[1] - 1)
+        z1 = min(self.z1, grid_shape[2] - 1)
+        return (x0, y0, z0, x1, y1, z1)
+
+    def mask_region(self, grid_shape: tuple[int, int, int],
+                    origin: tuple[int, int, int],
+                    size: tuple[int, int, int]) -> np.ndarray:
+        ox, oy, oz = origin
+        sx, sy, sz = size
+        m = np.zeros((sx, sy, sz), dtype=bool)
+        x0 = max(self.x0, ox)
+        y0 = max(self.y0, oy)
+        z0 = max(self.z0, oz)
+        x1 = min(self.x1, ox + sx - 1)
+        y1 = min(self.y1, oy + sy - 1)
+        z1 = min(self.z1, oz + sz - 1)
+        if x1 < x0 or y1 < y0 or z1 < z0:
+            return m
+        lx0, ly0, lz0 = x0 - ox, y0 - oy, z0 - oz
+        lx1, ly1, lz1 = x1 - ox, y1 - oy, z1 - oz
+        if self.hollow and self.wall_thickness > 0:
+            m[lx0:lx1 + 1, ly0:ly1 + 1, lz0:lz1 + 1] = True
+            t = self.wall_thickness
+            ix0, iy0, iz0 = lx0 + t, ly0 + t, lz0 + t
+            ix1, iy1, iz1 = lx1 - t, ly1 - t, lz1 - t
+            if ix0 <= ix1 and iy0 <= iy1 and iz0 <= iz1:
+                m[ix0:ix1 + 1, iy0:iy1 + 1, iz0:iz1 + 1] = False
+        else:
+            m[lx0:lx1 + 1, ly0:ly1 + 1, lz0:lz1 + 1] = True
+        return m
+
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         m = _make_mask(shape)
         x0, y0, z0 = max(self.x0, 0), max(self.y0, 0), max(self.z0, 0)
@@ -52,6 +88,16 @@ class Sphere:
     hollow: bool = False
     shell_thickness: float = 1.0
 
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        r = float(self.r)
+        x0 = max(int(np.floor(self.cx - r)), 0)
+        y0 = max(int(np.floor(self.cy - r)), 0)
+        z0 = max(int(np.floor(self.cz - r)), 0)
+        x1 = min(int(np.ceil(self.cx + r)), grid_shape[0] - 1)
+        y1 = min(int(np.ceil(self.cy + r)), grid_shape[1] - 1)
+        z1 = min(int(np.ceil(self.cz + r)), grid_shape[2] - 1)
+        return (x0, y0, z0, x1, y1, z1)
+
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         X, Y, Z = coords_grid(shape)
         d2 = (X - self.cx) ** 2 + (Y - self.cy) ** 2 + (Z - self.cz) ** 2
@@ -74,6 +120,16 @@ class Ellipsoid:
     rz: float
     hollow: bool = False
     shell_thickness: float = 1.0
+
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        r = max(self.rx, self.ry, self.rz)
+        x0 = max(int(np.floor(self.cx - r)), 0)
+        y0 = max(int(np.floor(self.cy - r)), 0)
+        z0 = max(int(np.floor(self.cz - r)), 0)
+        x1 = min(int(np.ceil(self.cx + r)), grid_shape[0] - 1)
+        y1 = min(int(np.ceil(self.cy + r)), grid_shape[1] - 1)
+        z1 = min(int(np.ceil(self.cz + r)), grid_shape[2] - 1)
+        return (x0, y0, z0, x1, y1, z1)
 
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         X, Y, Z = coords_grid(shape)
@@ -102,19 +158,54 @@ class Cylinder:
     r: float
     y0: int
     y1: int  # inclusive
-    axis: str = "y"  # 'y' (vertical) supported first
+    axis: str = "y"  # 'x','y','z' -- the cylinder's long axis
     hollow: bool = False
     shell_thickness: float = 1.0
 
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        r = float(self.r)
+        if self.axis == "y":
+            x0 = max(int(np.floor(self.cx - r)), 0)
+            z0 = max(int(np.floor(self.cz - r)), 0)
+            x1 = min(int(np.ceil(self.cx + r)), grid_shape[0] - 1)
+            z1 = min(int(np.ceil(self.cz + r)), grid_shape[2] - 1)
+            y0 = max(min(self.y0, self.y1), 0)
+            y1 = min(max(self.y0, self.y1), grid_shape[1] - 1)
+        elif self.axis == "x":
+            # cross-section in (y, z); long axis = x in [min(y0,y1)..max] -- but
+            # y0/y1 are reused as the along-axis extent.
+            y0c = max(int(np.floor(self.cx - r)), 0)
+            z0 = max(int(np.floor(self.cz - r)), 0)
+            y1c = min(int(np.ceil(self.cx + r)), grid_shape[1] - 1)
+            z1 = min(int(np.ceil(self.cz + r)), grid_shape[2] - 1)
+            x0 = max(min(self.y0, self.y1), 0)
+            x1 = min(max(self.y0, self.y1), grid_shape[0] - 1)
+            return (x0, y0c, z0, x1, y1c, z1)
+        else:  # axis == "z"
+            x0 = max(int(np.floor(self.cx - r)), 0)
+            y0c = max(int(np.floor(self.cz - r)), 0)
+            x1 = min(int(np.ceil(self.cx + r)), grid_shape[0] - 1)
+            y1c = min(int(np.ceil(self.cz + r)), grid_shape[1] - 1)
+            z0 = max(min(self.y0, self.y1), 0)
+            z1 = min(max(self.y0, self.y1), grid_shape[2] - 1)
+            return (x0, y0c, z0, x1, y1c, z1)
+        return (x0, y0, z0, x1, y1, z1)
+
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
-        if self.axis != "y":
-            raise NotImplementedError("only axis='y' supported for now")
         X, Y, Z = coords_grid(shape)
-        d2 = (X - self.cx) ** 2 + (Z - self.cz) ** 2
+        if self.axis == "y":
+            d2 = (X - self.cx) ** 2 + (Z - self.cz) ** 2
+            along = (Y >= self.y0) & (Y <= self.y1)
+        elif self.axis == "x":
+            # cross-section in (Y, Z); long axis = X in [y0..y1] (reused names)
+            d2 = (Y - self.cx) ** 2 + (Z - self.cz) ** 2
+            along = (X >= self.y0) & (X <= self.y1)
+        else:  # "z"
+            d2 = (X - self.cx) ** 2 + (Y - self.cz) ** 2
+            along = (Z >= self.y0) & (Z <= self.y1)
         r2 = self.r * self.r
-        vertical = (Y >= self.y0) & (Y <= self.y1)
         radial = d2 <= r2
-        m = vertical & radial
+        m = along & radial
         if self.hollow:
             ri = max(self.r - self.shell_thickness, 0.0)
             inner = d2 <= ri * ri
@@ -129,6 +220,16 @@ class Cone:
     r_base: float
     y_base: int
     y_apex: int  # apex above base; r decreases linearly to 0
+
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        r = float(self.r_base)
+        x0 = max(int(np.floor(self.cx - r)), 0)
+        z0 = max(int(np.floor(self.cz - r)), 0)
+        x1 = min(int(np.ceil(self.cx + r)), grid_shape[0] - 1)
+        z1 = min(int(np.ceil(self.cz + r)), grid_shape[2] - 1)
+        y0 = max(min(self.y_base, self.y_apex), 0)
+        y1 = min(max(self.y_base, self.y_apex), grid_shape[1] - 1)
+        return (x0, y0, z0, x1, y1, z1)
 
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         X, Y, Z = coords_grid(shape)
@@ -152,6 +253,16 @@ class Pyramid:
     y_base: int
     y_apex: int
 
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        bh = int(self.base_half)
+        x0 = max(self.x0 - bh, 0)
+        z0 = max(self.z0 - bh, 0)
+        x1 = min(self.x0 + bh, grid_shape[0] - 1)
+        z1 = min(self.z0 + bh, grid_shape[2] - 1)
+        y0 = max(min(self.y_base, self.y_apex), 0)
+        y1 = min(max(self.y_base, self.y_apex), grid_shape[1] - 1)
+        return (x0, y0, z0, x1, y1, z1)
+
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         X, Y, Z = coords_grid(shape)
         h = self.y_apex - self.y_base
@@ -173,6 +284,16 @@ class Torus:
     R: float  # major radius (ring center distance)
     r: float  # minor radius (tube)
 
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        Rr = self.R + self.r
+        x0 = max(int(np.floor(self.cx - Rr)), 0)
+        y0 = max(int(np.floor(self.cy - self.r)), 0)
+        z0 = max(int(np.floor(self.cz - Rr)), 0)
+        x1 = min(int(np.ceil(self.cx + Rr)), grid_shape[0] - 1)
+        y1 = min(int(np.ceil(self.cy + self.r)), grid_shape[1] - 1)
+        z1 = min(int(np.ceil(self.cz + Rr)), grid_shape[2] - 1)
+        return (x0, y0, z0, x1, y1, z1)
+
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         X, Y, Z = coords_grid(shape)
         dx = X - self.cx
@@ -189,6 +310,16 @@ class Plane:
     axis: str  # 'x','y','z'
     coord: int
     thickness: int = 1
+
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        ax = {"x": 0, "y": 1, "z": 2}[self.axis]
+        t = max(self.thickness, 1)
+        lo = max(self.coord - t // 2, 0)
+        hi = min(self.coord + t // 2 + (t % 2), grid_shape[ax] - 1)
+        full = [0, 0, 0, grid_shape[0] - 1, grid_shape[1] - 1, grid_shape[2] - 1]
+        full[ax * 2] = lo
+        full[ax * 2 + 3] = hi
+        return (full[0], full[1], full[2], full[3], full[4], full[5])
 
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         m = np.zeros(shape, dtype=bool)
@@ -214,6 +345,12 @@ class Wedge:
     z1: int
     split_axis: str = "x"  # axis along which the diagonal runs
 
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        return (min(self.x0, self.x1), min(self.y0, self.y1), min(self.z0, self.z1),
+                min(max(self.x0, self.x1), grid_shape[0] - 1),
+                min(max(self.y0, self.y1), grid_shape[1] - 1),
+                min(max(self.z0, self.z1), grid_shape[2] - 1))
+
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         box = Box(self.x0, self.y0, self.z0, self.x1, self.y1, self.z1).mask(shape)
         X, Y, Z = coords_grid(shape)
@@ -237,6 +374,15 @@ class Line:
     x1: int
     y1: int
     z1: int
+
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        x0 = max(min(self.x0, self.x1), 0)
+        y0 = max(min(self.y0, self.y1), 0)
+        z0 = max(min(self.z0, self.z1), 0)
+        x1 = min(max(self.x0, self.x1), grid_shape[0] - 1)
+        y1 = min(max(self.y0, self.y1), grid_shape[1] - 1)
+        z1 = min(max(self.z0, self.z1), grid_shape[2] - 1)
+        return (x0, y0, z0, x1, y1, z1)
 
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         m = np.zeros(shape, dtype=bool)
@@ -263,6 +409,16 @@ class Dome:
     r: float
     hollow: bool = False
     shell_thickness: float = 1.0
+
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        r = float(self.r)
+        x0 = max(int(np.floor(self.cx - r)), 0)
+        y0 = max(int(np.floor(self.cy)), 0)
+        z0 = max(int(np.floor(self.cz - r)), 0)
+        x1 = min(int(np.ceil(self.cx + r)), grid_shape[0] - 1)
+        y1 = min(int(np.ceil(self.cy + r)), grid_shape[1] - 1)
+        z1 = min(int(np.ceil(self.cz + r)), grid_shape[2] - 1)
+        return (x0, y0, z0, x1, y1, z1)
 
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         X, Y, Z = coords_grid(shape)
@@ -292,6 +448,16 @@ class Helix:
     y1: int
     turns: float = 3.0
     thickness: float = 1.0
+
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        r = float(self.r)
+        x0 = max(int(np.floor(self.cx - r)), 0)
+        y0 = max(self.y0, 0)
+        z0 = max(int(np.floor(self.cz - r)), 0)
+        x1 = min(int(np.ceil(self.cx + r)), grid_shape[0] - 1)
+        y1 = min(self.y1, grid_shape[1] - 1)
+        z1 = min(int(np.ceil(self.cz + r)), grid_shape[2] - 1)
+        return (x0, y0, z0, x1, y1, z1)
 
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         m = np.zeros(shape, dtype=bool)
@@ -332,6 +498,16 @@ class Arch:
     r: float
     thickness: float = 1.0
 
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        r = float(self.r) + float(self.thickness)
+        x0 = max(int(np.floor(self.cx - r)), 0)
+        y0 = max(int(np.floor(self.cy - r)), 0)
+        z0 = min(self.z0, grid_shape[2] - 1)
+        x1 = min(int(np.ceil(self.cx + r)), grid_shape[0] - 1)
+        y1 = min(int(np.ceil(self.cy + r)), grid_shape[1] - 1)
+        z1 = min(self.z1, grid_shape[2] - 1)
+        return (x0, y0, z0, x1, y1, z1)
+
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         X, Y, Z = coords_grid(shape)
         dx = X - self.cx
@@ -358,6 +534,16 @@ class Spiral:
     r_outer: float
     turns: float = 2.0
     thickness: float = 1.0
+
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        r = max(float(self.r_inner), float(self.r_outer)) + float(self.thickness)
+        x0 = max(int(np.floor(self.cx - r)), 0)
+        y0 = max(self.y0, 0)
+        z0 = max(int(np.floor(self.cz - r)), 0)
+        x1 = min(int(np.ceil(self.cx + r)), grid_shape[0] - 1)
+        y1 = min(self.y1, grid_shape[1] - 1)
+        z1 = min(int(np.ceil(self.cz + r)), grid_shape[2] - 1)
+        return (x0, y0, z0, x1, y1, z1)
 
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         m = np.zeros(shape, dtype=bool)
@@ -395,6 +581,17 @@ class Staircase:
     step_depth: int = 2
     step_height: int = 1
     axis: str = "x"  # 'x' or 'z' direction of travel
+
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        x_max = self.x0 + (self.y1 - self.y0) // max(self.step_height, 1) * self.step_depth + self.step_depth
+        z_max = self.z0 + self.step_width
+        x1 = min(max(self.x0, x_max - 1), grid_shape[0] - 1) if self.axis == "x" else min(self.x0 + self.step_width - 1, grid_shape[0] - 1)
+        z1 = min(max(self.z0, z_max - 1), grid_shape[2] - 1) if self.axis == "z" else min(self.z0 + self.step_width - 1, grid_shape[2] - 1)
+        x0 = min(self.x0, x1)
+        z0 = min(self.z0, z1)
+        y0 = max(self.y0, 0)
+        y1 = min(self.y1, grid_shape[1] - 1)
+        return (x0, y0, z0, x1, y1, z1)
 
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         m = np.zeros(shape, dtype=bool)

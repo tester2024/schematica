@@ -16,7 +16,7 @@ from shapely.geometry import shape as shp_geom
 from .base import coords_grid
 
 
-def _load_polygon(src: str | Path | dict | str) -> Polygon:
+def _load_polygon(src: str | Path | dict[str, object]) -> Polygon:
     if isinstance(src, str) and src.strip().startswith("POLYGON"):
         return _wkt.loads(src)
     if isinstance(src, str) and src.strip().startswith("{"):
@@ -88,7 +88,7 @@ class Extrude:
 
 
 def extrude_polygon(
-    polygon: Polygon | str | Path | dict,
+    polygon: Polygon | str | Path | dict[str, object],
     origin: tuple[int, int, int] = (0, 0, 0),
     extrude_axis: str = "z",
     length: int = 1,

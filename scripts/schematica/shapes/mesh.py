@@ -3,25 +3,26 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
 
 @dataclass(frozen=True)
 class MeshShape:
-    mesh: object  # trimesh.Trimesh
+    mesh: Any  # trimesh.Trimesh
     origin: tuple[float, float, float] = (0.0, 0.0, 0.0)
     scale: float = 1.0
 
     def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
         import trimesh
 
-        m = self.mesh.copy()
+        m: Any = self.mesh.copy()
         m.apply_scale(self.scale)
         ox, oy, oz = self.origin
         m.apply_translation((ox, oy, oz))
         # Use trimesh voxelization aligned to grid cells.
-        vg = trimesh.voxelize.VoxelGrid(m, pitch=1.0)
+        vg = trimesh.voxelize.VoxelGrid(m, pitch=1.0)  # type: ignore[attr-defined]
         # vg.matrix is (nx, ny, nz) bool with origin vg.origin
         mat = vg.matrix
         o = vg.origin
