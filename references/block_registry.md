@@ -3,7 +3,7 @@
 ## Sources of block data
 
 1. **Vendored minecraft-data repo** (preferred for full vanilla catalogs).
-   From the skill root (the directory containing `SKILL.md`):
+   From the skill/repo root (the directory containing `SKILL.md`):
    ```
    git clone https://github.com/PrismarineJS/minecraft-data minecraft_data
    ```
@@ -13,9 +13,12 @@
 2. **`SCHEMATICA_MINECRAFT_DATA` env var**: point to any minecraft-data clone.
    `BlockRegistry.for_version` checks this env var first.
 
-3. **Built-in fallback catalog** (when neither of the above exists): a small
-   hardcoded list in `scripts/schematica/blocks/registry.py::_FALLBACK_BLOCKS`. Always
-   importable; never throws on missing data.
+3. **Built-in fallback catalog** (when neither of the above exists): a compact
+   hardcoded list in `scripts/schematica/blocks/registry.py::_FALLBACK_BLOCKS`.
+   Always importable; never throws on missing data.
+
+The default loader checks `SCHEMATICA_MINECRAFT_DATA`, then
+`<skill_root>/minecraft_data`, then `scripts/minecraft_data`.
 
 ## Block JSON shape (PrismarineJS)
 
@@ -40,6 +43,7 @@ from schematica.blocks.registry import BlockRegistry
 
 reg = BlockRegistry.for_version("1.20.1")   # cached
 reg["minecraft:stone"]        # BlockDef
+reg["stone"]                  # same BlockDef; minecraft: is auto-normalized
 reg.by_id(1)                  # BlockDef by numeric id
 "minecraft:oak_log" in reg   # True
 reg.validate(Block.parse("minecraft:oak_log[axis=y]"))   # raises on bad state
@@ -83,16 +87,27 @@ Block.parse("minecraft:powered_rail[powered=true]").states
 # (("powered", True),)
 ```
 
+Names from minecraft-data are normalized to lowercase `minecraft:`-prefixed
+forms on load. This matters for pre-1.13 catalogs whose JSON may use names like
+`"wool"`; `reg["wool"]`, `reg["minecraft:wool"]`, and entries from `reg.all()`
+now agree on `minecraft:wool`.
+
 ## Fallback catalog blocks
 
-`air, stone, grass_block, dirt, cobblestone, oak_planks, bedrock, sand,
-oak_log, glass, bricks, obsidian, oak_fence, glowstone, end_stone,
-quartz_block, purple_stained_glass, prismarine, sea_lantern, red_sand,
-packed_ice`.
+The fallback catalog includes common structural blocks such as `air`, `stone`,
+`grass_block`, `dirt`, `cobblestone`, `oak_planks`, `bedrock`, `sand`,
+`oak_log`, `glass`, `bricks`, `obsidian`, `oak_fence`, `glowstone`,
+`end_stone`, `quartz_block`, `prismarine`, `sea_lantern`, `red_sand`, and
+`packed_ice`. It also includes all 16 colors for wool, stained glass,
+terracotta, and concrete so common team-color builds work offline.
 
-Only `oak_log` has a state (`axis`, default `y`). For builds needing other
-blocks (logs, stairs, slabs, fences with states), vendor the
-minecraft-data repo.
+Only `oak_log` has a state (`axis`, default `y`) in fallback mode. For builds
+needing other blocks or exact version-specific states (stairs, slabs, fences,
+doors, waterlogging, etc.), vendor the minecraft-data repo.
+
+Fallback `by_id()` values are unique so later entries cannot overwrite earlier
+ones, but synthetic ids are used where no reliable legacy id is known. Use
+`by_id()` for known vanilla ids only; prefer name lookup for new code.
 
 ## Version selection
 
@@ -111,3 +126,8 @@ the file level. The `BlockRegistry`'s role is **validation** before writing:
 ensure every block the agent emits exists in the target version. Without
 vendored data, validation uses the fallback list and will reject unknown
 blocks; with vendored data, it accepts the full vanilla set for that version.
+
+For pre-1.13 targets, remember that Minecraft used numeric IDs plus metadata.
+The registry can validate names, but it does not synthesize every legacy
+metadata variant into a modern-style blockstate. Use `write_mcedit` for legacy
+colored blocks when targeting 1.7-1.12 workflows.

@@ -35,6 +35,7 @@ fallback catalog).
 from schematica.blocks.registry import BlockRegistry
 reg = BlockRegistry.for_version("1.20.1")
 reg["minecraft:stone"]        # BlockDef(id, name, display_name, states)
+reg["stone"]                  # same lookup; minecraft: prefix is normalized
 reg.by_id(1)                  # BlockDef by numeric id
 "minecraft:stone" in reg     # True
 reg.validate(Block.parse("minecraft:oak_log[axis=y]"))   # raises on bad state
@@ -192,14 +193,33 @@ Trunk + leaf canopy sphere.
 ## `schematica.render.preview`
 
 ### `preview(grid, out_dir, views=("top","front","right","iso")) -> list[Path]`
-Writes `preview_<view>.png` files. Uses matplotlib `Axes3D.voxels` under Agg.
-Colors come from `_BLOCK_COLORS` map in `preview.py`.
+Writes `preview_<view>.png` files. Small dense grids use matplotlib
+`Axes3D.voxels` under Agg. Large dense grids switch to downsampled projected
+views and warn; `ChunkedGrid` previews use projected views without dense
+materialisation. Colors come from `_BLOCK_COLORS` map in `preview.py`.
 
 ## `schematica.export.sponge`
 
 ### `write_sponge(grid, path, data_version=3465, offset=(0,0,0), metadata=None) -> Path`
 Writes gzip-compressed Sponge v2 `.schem`. `data_version=3465` ≈ MC 1.20.1.
 Block ordering: `index = (y*length + z)*width + x`, varint-encoded.
+Warns when a pre-1.13 `data_version` is paired with modern flattened names or
+blockstate properties.
+
+## `schematica.export.mcedit`
+
+### `write_mcedit(grid, path, legacy_ids=None, block_meta=None) -> Path`
+Writes gzip-compressed legacy MCEdit `.schematic` with `Blocks` and `Data` byte
+arrays. The default mapping covers common legacy blocks and metadata for all 16
+colors of wool, stained glass, terracotta, and concrete, plus common stone,
+plank, log, and sand variants. Unknown blocks become air unless `legacy_ids` or
+`block_meta` provides an override.
+
+## `schematica.export.litematic`
+
+### `write_litematic(grid, path, region_name="Main", origin=(0,0,0), data_version=3465) -> Path`
+Writes a single-region Litematica `.litematic` with palette and packed
+`BlockStates`. Dense and chunked grids are both supported.
 
 ## `schematica.session.session`
 

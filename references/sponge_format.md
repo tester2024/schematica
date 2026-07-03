@@ -90,9 +90,17 @@ The `.schem` is loadable by:
 - Litematica mod (import as Sponge schematic).
 - Any tool that reads Sponge v2.
 
-## Switching to amulet-core
+## Legacy data versions
 
-For multi-format output (MCEdit, litematic), install `amulet-core` (Python
-3.11-3.13 only) and replace the exporter. The `Session.grid` (VoxelGrid) is
-already a numpy-backed 3D array, directly convertible to amulet's
-`BlockManager` + chunk format. See `references/roadmap.md`.
+`data_version < 1451` means pre-flattening Minecraft (1.12 and older). Sponge
+can still store palette strings, but modern names such as `minecraft:red_wool`
+do not represent legacy numeric IDs plus metadata. `write_sponge` emits a
+`RuntimeWarning` when a legacy data version is paired with modern flattened
+names or blockstate properties. For 1.7-1.12 workflows, prefer
+`write_mcedit(..., path="build.schematic")` when metadata matters.
+
+## Other exporters
+
+The toolkit also includes built-in `write_mcedit` and `write_litematic`
+exporters. `amulet-core` remains an optional future/backend integration, not a
+requirement for these formats.
