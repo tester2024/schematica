@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from ..session.session import Session
 from ..shapes.heightmap import Heightmap
 from .noise import perlin2d
 
@@ -17,7 +18,7 @@ def terrain_heightmap(shape: tuple[int, int, int], *, seed: int = 0,
     return Heightmap(heights=heights, y_base=0, solid_below=True)
 
 
-def apply_terrain(session, *, seed: int = 0, amplitude: int = 8,
+def apply_terrain(session: Session, *, seed: int = 0, amplitude: int = 8,
                   scale: float = 0.06,
                   top: str = "minecraft:grass_block",
                   filler: str = "minecraft:dirt",
@@ -32,18 +33,18 @@ def apply_terrain(session, *, seed: int = 0, amplitude: int = 8,
     top_mask = (_y_grid(session.grid.shape) == (h[X, Z] - 1))
 
     class _TopLayer:
-        def mask(self, shp):
-            return top_mask
+        def mask(self, shp: tuple[int, int, int]) -> np.ndarray:
+            return np.asarray(top_mask)
     session.paint(_TopLayer(), top)
 
 
-def _y_grid(shape):
+def _y_grid(shape: tuple[int, int, int]) -> np.ndarray:
     return np.meshgrid(np.arange(shape[0]), np.arange(shape[1]), np.arange(shape[2]), indexing="ij")[1]
 
 
-def apply_tree(session, *, x: int, z: int, height: int = 6,
-               trunk: str = "minecraft:oak_log",
-               leaves: str = "minecraft:leaves") -> None:
+def apply_tree(session: Session, *, x: int, z: int, height: int = 6,
+                trunk: str = "minecraft:oak_log",
+                leaves: str = "minecraft:oak_leaves") -> None:
     from ..shapes.primitives import Box, Sphere
     # trunk
     session.add(Box(x, 0, z, x, height - 1, z), trunk)
