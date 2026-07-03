@@ -18,13 +18,20 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 
 from .block import AIR, Block
 
 _VERSION_DIR_RE = re.compile(r"^\d+(\.\d+)+$")
+
+
+def _normalize_name(name: str) -> str:
+    key = name.strip().lower()
+    if ":" not in key:
+        key = f"minecraft:{key}"
+    return key
 
 
 @dataclass(frozen=True)
@@ -123,6 +130,25 @@ _FALLBACK_BLOCKS: list[dict[str, object]] = [
     {"id": 1, "name": "minecraft:purpur_pillar", "displayName": "Purpur Pillar"},
 ]
 
+_FALLBACK_COLORS = (
+    "white", "orange", "magenta", "light_blue", "yellow", "lime", "pink", "gray",
+    "light_gray", "cyan", "purple", "blue", "brown", "green", "red", "black",
+)
+
+_FALLBACK_EXTRA_BLOCKS: list[dict[str, object]] = []
+_next_fallback_id = 5000
+for _family in ("wool", "stained_glass", "terracotta", "concrete"):
+    for _color in _FALLBACK_COLORS:
+        _display = f"{_color.replace('_', ' ').title()} {_family.replace('_', ' ').title()}"
+        _FALLBACK_EXTRA_BLOCKS.append({
+            "id": _next_fallback_id,
+            "name": f"minecraft:{_color}_{_family}",
+            "displayName": _display,
+        })
+        _next_fallback_id += 1
+
+_FALLBACK_BLOCKS.extend(_FALLBACK_EXTRA_BLOCKS)
+
 
 def _parse_state_schema(raw: dict[str, object]) -> BlockStateSchema:
     values_raw = raw.get("values", [])
@@ -145,7 +171,7 @@ def _parse_block_def(raw: dict[str, object]) -> BlockDef:
         states = tuple(_parse_state_schema(s) for s in states_raw if isinstance(s, dict))
     return BlockDef(
         id=int(raw["id"]),  # type: ignore[call-overload]
-        name=str(raw["name"]),
+        name=_normalize_name(str(raw["name"])),
         display_name=str(raw.get("displayName", raw["name"])),
         states=states,
     )
@@ -163,8 +189,25 @@ class BlockRegistry:
 
     def __init__(self, version: str, blocks: list[BlockDef]) -> None:
         self.version = version
-        self._by_name: dict[str, BlockDef] = {b.name: b for b in blocks}
-        self._by_id: dict[int, BlockDef] = {b.id: b for b in blocks}
+        self._by_name: dict[str, BlockDef] = {}
+        self._by_id: dict[int, BlockDef] = {}
+        used_ids: set[int] = set()
+        next_synthetic_id = max((b.id for b in blocks), default=-1) + 1
+        for block_def in blocks:
+            name = _normalize_name(block_def.name)
+            bd = block_def if block_def.name == name else replace(block_def, name=name)
+            if name in self._by_name:
+                # Prefer the first definition so fallback duplicates cannot
+                # overwrite known legacy ids such as glowstone=89 or obsidian=49.
+                continue
+            if bd.id in used_ids:
+                while next_synthetic_id in used_ids:
+                    next_synthetic_id += 1
+                bd = replace(bd, id=next_synthetic_id)
+                next_synthetic_id += 1
+            self._by_name[name] = bd
+            self._by_id[bd.id] = bd
+            used_ids.add(bd.id)
 
     @classmethod
     @lru_cache(maxsize=16)
@@ -180,9 +223,7 @@ class BlockRegistry:
         return cls(version=version, blocks=blocks)
 
     def __getitem__(self, name: str) -> BlockDef:
-        key = name.lower()
-        if ":" not in key:
-            key = f"minecraft:{key}"
+        key = _normalize_name(name)
         if key not in self._by_name:
             raise KeyError(f"Unknown block '{name}' for version {self.version}")
         return self._by_name[key]
@@ -193,10 +234,7 @@ class BlockRegistry:
     def __contains__(self, name: object) -> bool:
         if not isinstance(name, str):
             return False
-        key = name.lower()
-        if ":" not in key:
-            key = f"minecraft:{key}"
-        return key in self._by_name
+        return _normalize_name(name) in self._by_name
 
     def validate(self, block: Block) -> Block:
         bd = self[block.name]
@@ -245,16 +283,16 @@ class BlockRegistry:
 
 
 def _default_data_root() -> Path:
-    """Locate the minecraft-data tree: env var > sibling submodule > fallback."""
+    """Locate the minecraft-data tree: env var > repo/skill root > scripts dir > fallback."""
     import os
 
     env = os.environ.get("SCHEMATICA_MINECRAFT_DATA")
     if env:
         return Path(env)
-    here = Path(__file__).resolve().parent.parent.parent
-    cand = here / "minecraft_data"
-    if cand.exists():
-        return cand
+    scripts_root = Path(__file__).resolve().parent.parent.parent
+    for cand in (scripts_root.parent / "minecraft_data", scripts_root / "minecraft_data"):
+        if cand.exists():
+            return cand
     return Path()  # triggers fallback in for_version
 
 

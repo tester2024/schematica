@@ -1,6 +1,8 @@
 """Tests for Block + BlockRegistry."""
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
+
 import pytest
 
 from schematica.blocks.block import AIR, Block
@@ -38,7 +40,7 @@ def test_block_bool_state():
 
 def test_block_immutable():
     b = Block(name="minecraft:stone")
-    with pytest.raises(Exception):
+    with pytest.raises(FrozenInstanceError):
         b.name = "minecraft:dirt"  # type: ignore[misc]
 
 
@@ -55,6 +57,34 @@ def test_registry_fallback_lookup():
     assert bd.display_name == "Stone"
     assert "minecraft:stone" in reg
     assert "minecraft:nonexistent_xyz" not in reg
+
+
+def test_registry_normalizes_unprefixed_catalog_names():
+    from schematica.blocks.registry import BlockDef, BlockRegistry
+
+    reg = BlockRegistry("1.8", [BlockDef(35, "wool", "Wool")])
+    assert "wool" in reg
+    assert "minecraft:wool" in reg
+    assert reg["wool"].name == "minecraft:wool"
+    assert reg["minecraft:wool"].name == "minecraft:wool"
+    assert reg.all()[0].name == "minecraft:wool"
+
+
+def test_registry_duplicate_ids_do_not_overwrite_fallback_lookup():
+    from schematica.blocks.registry import BlockRegistry
+
+    reg = BlockRegistry.for_version("1.20.1")
+    assert reg.by_id(1).name == "minecraft:stone"
+    ids = [b.id for b in reg.all()]
+    assert len(ids) == len(set(ids))
+
+
+def test_registry_fallback_includes_common_colored_blocks():
+    from schematica.blocks.registry import BlockRegistry
+
+    reg = BlockRegistry.for_version("1.20.1")
+    assert "minecraft:red_wool" in reg
+    assert "blue_stained_glass" in reg
 
 
 def test_registry_resolve_fills_defaults():
