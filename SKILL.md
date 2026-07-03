@@ -129,13 +129,13 @@ terracotta, and concrete.
 ### Choosing CLI vs code (read `references/workflow_guide.md` for detail)
 
 **Prefer the CLI** when the build uses only registered commands (box, sphere,
-cylinder, dome, helix, arch, staircase, subtract, paint, replace, etc.). The
-CLI has a validation layer that catches inverted bounds, negative radii,
-unknown blocks, and other common mistakes before they execute. It is the
-fastest and safest path for structural builds.
+cylinder, dome, helix, arch, staircase, clone.translate, clone.cardinal,
+subtract, paint, replace, etc.). The CLI has a validation layer that catches
+inverted bounds, negative radii, unknown blocks, and other common mistakes
+before they execute. It is the fastest and safest path for structural builds.
 
 **Switch to Python** when the build needs:
-- Loops or conditionals (e.g. "place 20 trees at random positions")
+- Loops or conditionals beyond simple clone repetition/symmetry (e.g. "place 20 trees at random positions")
 - Procedural generation (`apply_terrain`, `apply_tree`, Perlin noise)
 - Custom shapes not in the command table (fractals, WFC, `NoiseDeformed`)
 - Mesh import (`load_mesh("model.obj")`)

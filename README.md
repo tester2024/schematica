@@ -98,6 +98,8 @@ preview out_dir=previews
 | `clear` | | all air |
 | `mirror` | `axis=x\|y\|z` | |
 | `rotate` | `times=N axes=xy\|xz\|yz` | 90° increments |
+| `clone.translate` | `frm=A to=B offset=dx,dy,dz count=N` | repeat a source box |
+| `clone.cardinal` | `frm=A to=B center=x,z` | copy a quadrant/corner to the other 3 rotations |
 | `undo` / `redo` | | history |
 | `stats` | | shape/volume/solid/palette |
 | `preview` | `out_dir=DIR` | top/front/right/iso PNG |
