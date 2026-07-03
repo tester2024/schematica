@@ -5,11 +5,8 @@ import gzip
 import io
 from pathlib import Path
 
-import numpy as np
 import nbtlib
-import pytest
 
-from schematica.core.chunked import ChunkedGrid
 from schematica.core.voxel import VoxelGrid
 from schematica.export.litematic import write_litematic
 from schematica.export.mcedit import write_mcedit
@@ -81,6 +78,16 @@ def test_mcedit_custom_legacy_id_mapping(tmp_path):
     f = _load_nbt(out)
     blocks = bytes(f["Blocks"])
     assert 200 in blocks
+
+
+def test_mcedit_common_colored_blocks_write_metadata(tmp_path):
+    s = Session.new((1, 1, 1))
+    s.fill_all("minecraft:red_wool")
+    out = tmp_path / "red_wool.schematic"
+    write_mcedit(s.grid, out)
+    f = _load_nbt(out)
+    assert bytes(f["Blocks"]) == bytes([35])
+    assert bytes(f["Data"]) == bytes([14])
 
 
 # ---- Litematic --------------------------------------------------------

@@ -17,6 +17,7 @@ at a time, keeping peak memory bounded by ``chunk_size**2``.
 """
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,14 @@ from nbtlib import Byte, ByteArray, Compound, Int, IntArray, List, Short
 
 from ..core.chunked import ChunkedGrid
 from ..core.voxel import VoxelGrid
+
+_PRE_FLATTENING_DATA_VERSION = 1451
+_MODERN_ONLY_PREFIXES = (
+    "white_", "orange_", "magenta_", "light_blue_", "yellow_", "lime_",
+    "pink_", "gray_", "light_gray_", "cyan_", "purple_", "blue_", "brown_",
+    "green_", "red_", "black_",
+)
+_MODERN_ONLY_SUFFIXES = ("_wool", "_stained_glass", "_terracotta", "_concrete")
 
 
 def _varint_encode(value: int) -> bytes:
@@ -110,6 +119,7 @@ def write_sponge(grid: VoxelGrid | ChunkedGrid, path: str | Path, *, data_versio
     path = Path(path)
     sx, sy, sz = grid.shape
     palette = grid.palette
+    _warn_on_legacy_palette(data_version, [b.to_blockstate_str() for b in palette.blocks()])
     palette_comp: dict[str, nbtlib.Int] = {}
     for i, b in enumerate(palette.blocks()):
         palette_comp[b.to_blockstate_str()] = Int(i)
@@ -135,6 +145,27 @@ def write_sponge(grid: VoxelGrid | ChunkedGrid, path: str | Path, *, data_versio
     file = nbtlib.File(root, gzipped=True)
     file.save(path)
     return path
+
+
+def _warn_on_legacy_palette(data_version: int, blockstates: list[str]) -> None:
+    if data_version >= _PRE_FLATTENING_DATA_VERSION:
+        return
+    risky: list[str] = []
+    for blockstate in blockstates:
+        name = blockstate.split("[", 1)[0].removeprefix("minecraft:")
+        if "[" in blockstate or (
+            name.startswith(_MODERN_ONLY_PREFIXES) and name.endswith(_MODERN_ONLY_SUFFIXES)
+        ):
+            risky.append(blockstate)
+    if risky:
+        sample = ", ".join(risky[:5])
+        warnings.warn(
+            f"data_version={data_version} is pre-1.13, but the palette contains "
+            f"modern blockstates ({sample}); use MCEdit export for legacy metadata "
+            f"or a post-flattening data_version",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
 
 def _to_nbt(v: object) -> object:

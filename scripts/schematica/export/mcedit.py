@@ -31,17 +31,25 @@ from ..core.voxel import VoxelGrid
 DEFAULT_LEGACY_IDS: dict[str, int] = {
     "minecraft:air": 0,
     "minecraft:stone": 1,
+    "minecraft:granite": 1,
+    "minecraft:diorite": 1,
+    "minecraft:andesite": 1,
     "minecraft:grass_block": 2,
     "minecraft:dirt": 3,
     "minecraft:cobblestone": 4,
     "minecraft:oak_planks": 5,
+    "minecraft:spruce_planks": 5,
+    "minecraft:birch_planks": 5,
     "minecraft:bedrock": 7,
     "minecraft:sand": 12,
+    "minecraft:red_sand": 12,
     "minecraft:gravel": 13,
     "minecraft:gold_ore": 14,
     "minecraft:iron_ore": 15,
     "minecraft:coal_ore": 16,
     "minecraft:oak_log": 17,
+    "minecraft:spruce_log": 17,
+    "minecraft:birch_log": 17,
     "minecraft:oak_leaves": 18,
     "minecraft:glass": 20,
     "minecraft:lapis_ore": 21,
@@ -63,10 +71,51 @@ DEFAULT_LEGACY_IDS: dict[str, int] = {
     "minecraft:purple_stained_glass": 95,
     "minecraft:prismarine": 168,
     "minecraft:sea_lantern": 169,
-    "minecraft:red_sand": 179,
     "minecraft:packed_ice": 174,
     "minecraft:mossy_cobblestone": 48,
 }
+
+DEFAULT_LEGACY_META: dict[str, int] = {
+    "minecraft:granite": 1,
+    "minecraft:diorite": 3,
+    "minecraft:andesite": 5,
+    "minecraft:spruce_planks": 1,
+    "minecraft:birch_planks": 2,
+    "minecraft:spruce_log": 1,
+    "minecraft:birch_log": 2,
+    "minecraft:red_sand": 1,
+    "minecraft:mossy_stone_bricks": 1,
+    "minecraft:cracked_stone_bricks": 2,
+}
+
+_COLOR_META = {
+    "white": 0,
+    "orange": 1,
+    "magenta": 2,
+    "light_blue": 3,
+    "yellow": 4,
+    "lime": 5,
+    "pink": 6,
+    "gray": 7,
+    "light_gray": 8,
+    "cyan": 9,
+    "purple": 10,
+    "blue": 11,
+    "brown": 12,
+    "green": 13,
+    "red": 14,
+    "black": 15,
+}
+
+for _color, _meta in _COLOR_META.items():
+    DEFAULT_LEGACY_IDS[f"minecraft:{_color}_wool"] = 35
+    DEFAULT_LEGACY_META[f"minecraft:{_color}_wool"] = _meta
+    DEFAULT_LEGACY_IDS[f"minecraft:{_color}_stained_glass"] = 95
+    DEFAULT_LEGACY_META[f"minecraft:{_color}_stained_glass"] = _meta
+    DEFAULT_LEGACY_IDS[f"minecraft:{_color}_terracotta"] = 159
+    DEFAULT_LEGACY_META[f"minecraft:{_color}_terracotta"] = _meta
+    DEFAULT_LEGACY_IDS[f"minecraft:{_color}_concrete"] = 251
+    DEFAULT_LEGACY_META[f"minecraft:{_color}_concrete"] = _meta
 
 
 def _resolve_id(blockstate_str: str, mapping: dict[str, int]) -> int:
@@ -77,14 +126,25 @@ def _resolve_id(blockstate_str: str, mapping: dict[str, int]) -> int:
     return mapping.get(base, 0)
 
 
-def _encode_voxels_dense(grid: VoxelGrid, mapping: dict[str, int]) -> tuple[bytes, bytes]:
+def _resolve_meta(blockstate_str: str, mapping: dict[str, int]) -> int:
+    """Look up legacy block metadata, falling back to zero."""
+    if blockstate_str in mapping:
+        return mapping[blockstate_str]
+    base = blockstate_str.split("[", 1)[0]
+    return mapping.get(base, 0)
+
+
+def _encode_voxels_dense(grid: VoxelGrid, ids: dict[str, int], meta: dict[str, int]) -> tuple[bytes, bytes]:
     sx, sy, sz = grid.shape
     blocks = bytearray(sx * sy * sz)
     data = bytearray(sx * sy * sz)
     palette = grid.palette.blocks()
     idx_to_id = [0] * len(palette)
+    idx_to_meta = [0] * len(palette)
     for i, b in enumerate(palette):
-        idx_to_id[i] = _resolve_id(b.to_blockstate_str(), mapping)
+        blockstate = b.to_blockstate_str()
+        idx_to_id[i] = _resolve_id(blockstate, ids)
+        idx_to_meta[i] = _resolve_meta(blockstate, meta)
     arr = grid.data
     i = 0
     for y in range(sy):
@@ -92,17 +152,18 @@ def _encode_voxels_dense(grid: VoxelGrid, mapping: dict[str, int]) -> tuple[byte
             for x in range(sx):
                 v = int(arr[x, y, z])
                 blocks[i] = idx_to_id[v] & 0xFF
-                # data byte is metadata; we always emit 0 here (no per-state map)
+                data[i] = idx_to_meta[v] & 0xFF
                 i += 1
     return bytes(blocks), bytes(data)
 
 
-def _encode_voxels_chunked(grid: ChunkedGrid, mapping: dict[str, int]) -> tuple[bytes, bytes]:
+def _encode_voxels_chunked(grid: ChunkedGrid, ids: dict[str, int], meta: dict[str, int]) -> tuple[bytes, bytes]:
     sx, sy, sz = grid.shape
     blocks = bytearray(sx * sy * sz)
     data = bytearray(sx * sy * sz)
     palette = grid.palette.blocks()
-    idx_to_id = [_resolve_id(b.to_blockstate_str(), mapping) for b in palette]
+    idx_to_id = [_resolve_id(b.to_blockstate_str(), ids) for b in palette]
+    idx_to_meta = [_resolve_meta(b.to_blockstate_str(), meta) for b in palette]
     cs = grid.chunk_size
     chunks_by_cy: dict[int, dict[tuple[int, int], np.ndarray]] = {}
     for (cx, cy, cz), arr in grid._chunks.items():
@@ -125,7 +186,9 @@ def _encode_voxels_chunked(grid: ChunkedGrid, mapping: dict[str, int]) -> tuple[
         for z in range(sz):
             rowoff = base + z * sx
             for x in range(sx):
-                blocks[rowoff + x] = idx_to_id[int(plane[x, z])] & 0xFF
+                v = int(plane[x, z])
+                blocks[rowoff + x] = idx_to_id[v] & 0xFF
+                data[rowoff + x] = idx_to_meta[v] & 0xFF
     return bytes(blocks), bytes(data)
 
 
@@ -135,17 +198,19 @@ def write_mcedit(grid: VoxelGrid | ChunkedGrid, path: str | Path, *,
     """Write a legacy MCEdit `.schematic` (gzip NBT, byte block ids).
 
     ``legacy_ids`` optionally augments/overrides ``DEFAULT_LEGACY_IDS``.
-    ``block_meta`` is accepted for future use; currently metadata is emitted
-    as all-zero (callers should not rely on it).
+    ``block_meta`` optionally augments/overrides ``DEFAULT_LEGACY_META``.
     """
     path = Path(path)
-    mapping = dict(DEFAULT_LEGACY_IDS)
+    ids = dict(DEFAULT_LEGACY_IDS)
+    meta = dict(DEFAULT_LEGACY_META)
     if legacy_ids:
-        mapping.update(legacy_ids)
+        ids.update(legacy_ids)
+    if block_meta:
+        meta.update(block_meta)
     if isinstance(grid, ChunkedGrid):
-        blocks, data = _encode_voxels_chunked(grid, mapping)
+        blocks, data = _encode_voxels_chunked(grid, ids, meta)
     else:
-        blocks, data = _encode_voxels_dense(grid, mapping)
+        blocks, data = _encode_voxels_dense(grid, ids, meta)
     sx, sy, sz = grid.shape
     root = Compound({
         "Width": Short(sx),

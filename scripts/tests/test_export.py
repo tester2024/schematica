@@ -3,18 +3,15 @@ from __future__ import annotations
 
 import gzip
 import io
-import json
+import warnings
 from pathlib import Path
 
-import numpy as np
-import pytest
 import nbtlib
+import pytest
 
-from schematica.blocks.block import Block
-from schematica.core.voxel import VoxelGrid
 from schematica.export.sponge import write_sponge
-from schematica.shapes.primitives import Box
 from schematica.session.session import Session
+from schematica.shapes.primitives import Box
 
 
 def _load_schem(path: Path) -> nbtlib.File:
@@ -28,7 +25,6 @@ def test_export_stone_cube(tmp_path):
     write_sponge(s.grid, out)
     assert out.exists()
     # Read it back
-    raw = gzip.decompress(out.read_bytes())
     f = _load_schem(out)
     sch = f["Schematic"]
     assert int(sch["Width"]) == 3
@@ -56,3 +52,19 @@ def test_export_offset_and_metadata(tmp_path):
     f = _load_schem(out)
     assert [int(v) for v in f["Schematic"]["Offset"]] == [5, 10, 15]
     assert str(f["Schematic"]["Metadata"]["name"]) == "test"
+
+
+def test_export_warns_on_modern_palette_with_legacy_data_version(tmp_path):
+    s = Session.new((1, 1, 1))
+    s.fill_all("minecraft:red_wool")
+    with pytest.warns(RuntimeWarning, match="pre-1.13"):
+        write_sponge(s.grid, tmp_path / "legacy.schem", data_version=169)
+
+
+def test_export_allows_legacy_data_version_for_simple_palette(tmp_path):
+    s = Session.new((1, 1, 1))
+    s.fill_all("minecraft:stone")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        write_sponge(s.grid, tmp_path / "legacy_stone.schem", data_version=169)
+    assert not caught
