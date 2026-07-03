@@ -25,7 +25,8 @@
   exporters with dense/chunked parity tests.
 - **Phase 11 — Review hardening**: normalized registry names, unique fallback
   ids, expanded colored fallback blocks, MCEdit legacy metadata for common
-  colored blocks, Sponge legacy palette warnings, and safe large-grid previews.
+  colored blocks, Sponge legacy palette warnings, safe large-grid previews, and
+  clone commands for repeated/cardinal-symmetric builds.
 
 ## Remaining
 

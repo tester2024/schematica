@@ -229,6 +229,8 @@ Writes a single-region Litematica `.litematic` with palette and packed
 Methods (all return `self` for chaining unless noted):
 - `add(shape, block)`, `subtract(shape)`, `intersect(shape, block)`, `paint(shape, block)`.
 - `replace(src, dst) -> int`, `fill_all(block)`, `clear()`.
+- `clone_translate(frm, to, offset, count=1, include_air=False) -> int`.
+- `clone_cardinal(frm, to, center, include_air=False) -> int`.
 - `transform_rotate(times, axes)`, `transform_mirror(axis)`.
 - `undo() -> bool`, `redo() -> bool`.
 - `snapshot() -> dict`, `save(path)`, `load(path)` classmethod.
