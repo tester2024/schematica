@@ -61,13 +61,20 @@ In the REPL, type `help` to list commands, `exit` to quit.
 | `clear` | | | all air |
 | `mirror` | `axis`=`x\|y\|z` | | |
 | `rotate` | `times`, `axes`=`xy` | | 90° * times |
+| `clone.translate` | `frm`, `to`, `offset`, `count`=`1`, `include_air`=`false` | | copy a box by offset, repeated |
+| `clone.cardinal` | `frm`, `to`, `center`, `include_air`=`false` | | copy a box to other 3 Y-axis cardinal rotations |
 | `undo` | | | |
 | `redo` | | | |
 | `stats` | | | shape/volume/solid/palette |
 | `preview` | `out_dir`=`previews` | | top/front/right/iso PNGs |
 | `export` | `path` | | Sponge .schem |
+| `export.mcedit` | `path` | | legacy MCEdit .schematic |
+| `export.litematic` | `path` | | Litematica .litematic |
 | `save` | `path` | | .schematica session JSON |
 | `load` | `path` | | restore session |
+| `generate.terrain` | `seed`, `amplitude`, `scale`, `top`, `filler` | | Perlin terrain |
+| `generate.tree` | `at`, `height`, `trunk`, `leaves` | | tree template |
+| `generate.wfc` | `frm`, `to`, `tileset`, `seed` | | WFC fill |
 | `help` | | | list commands (REPL only) |
 | `exit` | | | quit (REPL only) |
 
@@ -85,6 +92,8 @@ subtract.box frm=14,9,14 to=18,12,18
 undo
 redo
 stats
+clone.translate frm=2,1,2 to=6,5,6 offset=10,0,0 count=2
+clone.cardinal frm=20,1,20 to=28,8,28 center=16,16
 export path=build.schem
 preview out_dir=previews
 save path=build.schematica

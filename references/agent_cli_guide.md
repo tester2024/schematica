@@ -56,6 +56,8 @@ run `python -m schematica --script <path>` from anywhere.
 | Clear to air | `clear` |
 | Flip | `mirror axis=x\|y\|z` |
 | Rotate 90° steps | `rotate times=N axes=xy\|xz\|yz` |
+| Repeat a source box | `clone.translate frm=A to=B offset=dx,dy,dz count=N` |
+| Four-way map symmetry | `clone.cardinal frm=A to=B center=x,z` |
 | Undo / redo | `undo` / `redo` |
 | Report state | `stats` |
 | Render PNGs | `preview out_dir=DIR` |
@@ -354,6 +356,7 @@ export path=final.schem
 - User wants a **single static build** → write one script, run once, export.
 - User wants to **iterate** on a build → `save` between scripts, `load` to resume.
 - User wants **terrain/villages** → use library API (Python script), not CLI.
+- User wants **Bedwars / hub quadrant symmetry** → build one quadrant, then use `clone.cardinal frm=A to=B center=x,z`.
 - User wants **previews** → always run `preview out_dir=...` last; read PNGs to verify visually (agents can't see them, but the file existing + non-trivial size is a sanity check).
 - User wants **MCEdit / legacy 1.8-ish workflow** → use `export.mcedit path=build.schematic`.
 - User wants **Litematica** → use `export.litematic path=build.litematic`.

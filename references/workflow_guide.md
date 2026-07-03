@@ -8,7 +8,7 @@ building anything.**
 
 | Mode | When | How | Pros | Cons |
 |---|---|---|---|---|
-| **CLI script** | Simple builds: <15 commands, only primitives in the command table | Write `.txt`, run `python -m schematica --script file.txt` | No Python boilerplate, validation layer catches mistakes, easy to verify | Limited to registered commands, no loops/conditionals, no procedural gen |
+| **CLI script** | Simple builds: <15 commands, only primitives/clone commands in the command table | Write `.txt`, run `python -m schematica --script file.txt` | No Python boilerplate, validation layer catches mistakes, easy to verify | Limited to registered commands, no arbitrary loops/conditionals |
 | **Python script** | Complex builds: loops, conditionals, procedural gen, custom shapes, mesh import | Write `.py`, run `python script.py` with `PYTHONPATH=scripts` | Full toolkit access, all shapes, all generators, arbitrary logic | More boilerplate, no auto-validation (must check manually) |
 | **Inline `-c`** | One-liners, quick experiments, piping into export | `python -c "..."` with `PYTHONPATH=scripts` | Fastest, no temp file | Hard to read, no error recovery, limited to one expression block |
 
@@ -21,10 +21,11 @@ building anything.**
    add.staircase, add.spiral, add.line, add.wedge, add.plane,
    subtract.box, subtract.sphere, subtract.cylinder, subtract.dome,
    subtract.pyramid, paint.box, paint.sphere, replace, fill, clear,
-   mirror, rotate, undo, redo, stats, preview, export, save, load`
+   mirror, rotate, clone.translate, clone.cardinal, undo, redo, stats,
+   preview, export, save, load`
    → **YES → use CLI script** (mode 1). It's the fastest and gets validation.
 
-2. **Does the build need loops, conditionals, math, or procedural generation?**
+2. **Does the build need loops, conditionals, math, or procedural generation beyond clone repetition/symmetry?**
    (e.g. "place 20 trees at random positions", "for each floor add a window
    ring", "apply Perlin terrain then carve rivers")
    → **YES → use Python script** (mode 2).
