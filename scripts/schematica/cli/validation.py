@@ -41,6 +41,19 @@ def _coord_tuple(s: str | tuple[int, int, int]) -> tuple[int, int, int] | None:
         return None
 
 
+def _coord_pair(s: str) -> tuple[float, float] | None:
+    if not isinstance(s, str):
+        return None
+    cleaned = s.strip().lstrip("(").rstrip(")")
+    parts = cleaned.replace(",", " ").split()
+    if len(parts) != 2:
+        return None
+    try:
+        return float(parts[0]), float(parts[1])
+    except ValueError:
+        return None
+
+
 def _bounds(a: tuple[int, int, int], b: tuple[int, int, int]) -> tuple[int, int, int]:
     """Return per-axis max - min. Negative => inverted bounds."""
     return tuple(b[i] - a[i] for i in range(3))  # type: ignore[return-value]
@@ -515,6 +528,26 @@ def check_rotate(times: int, axes: str) -> list[CheckResult]:
     return out
 
 
+def check_clone_translate(frm: str, to: str, offset: str, count: int,
+                          session: Any) -> list[CheckResult]:
+    out = _check_clone_source(frm, to, session)
+    off = _coord_tuple(offset)
+    if off is None:
+        out.append(CheckResult("error", "bad_coords", f"offset={offset!r} did not parse"))
+    elif off == (0, 0, 0):
+        out.append(CheckResult("warn", "zero_offset", "clone offset is zero; command is a no-op"))
+    if count <= 0:
+        out.append(CheckResult("error", "nonpositive_count", f"count={count} must be positive"))
+    return out
+
+
+def check_clone_cardinal(frm: str, to: str, center: str, session: Any) -> list[CheckResult]:
+    out = _check_clone_source(frm, to, session)
+    if _coord_pair(center) is None:
+        out.append(CheckResult("error", "bad_coords", f"center={center!r} did not parse to x,z"))
+    return out
+
+
 def check_generate_tree(at: str, height: int, session: Any) -> list[CheckResult]:
     out: list[CheckResult] = []
     c = _coord_tuple(at)
@@ -637,4 +670,24 @@ def _check_outside(frm: str, to: str, session: Any) -> list[CheckResult]:
         out.append(CheckResult("warn", "partly_out_of_bounds",
                                f"box frm={a} to={b} extends outside grid {shape}; "
                                f"will be clipped"))
+    return out
+
+
+def _check_clone_source(frm: str, to: str, session: Any) -> list[CheckResult]:
+    out: list[CheckResult] = []
+    a = _coord_tuple(frm)
+    b = _coord_tuple(to)
+    if a is None:
+        out.append(CheckResult("error", "bad_coords", f"frm={frm!r} did not parse"))
+    if b is None:
+        out.append(CheckResult("error", "bad_coords", f"to={to!r} did not parse"))
+    if a and b:
+        dims = _bounds(a, b)
+        if any(d < 0 for d in dims):
+            out.append(CheckResult("error", "inverted_bounds",
+                                   f"clone frm={a} to={b} has inverted bounds"))
+    out.extend(_check_outside(frm, to, session))
+    if any(r.code in {"out_of_bounds", "partly_out_of_bounds"} for r in out):
+        out.append(CheckResult("error", "clone_source_out_of_bounds",
+                               "clone source must be fully inside the grid"))
     return out

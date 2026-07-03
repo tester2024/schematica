@@ -1,8 +1,6 @@
 """Tests for CLI generate.* commands, export.* variants, and Translated fix."""
 from __future__ import annotations
 
-import pytest
-
 from schematica.cli.repl import dispatch
 from schematica.session.session import Session
 
@@ -47,9 +45,35 @@ def test_dispatch_export_litematic(tmp_path):
     assert p.exists()
 
 
+def test_dispatch_clone_translate():
+    s = Session.new((8, 4, 4))
+    dispatch(s, "add.box frm=0,0,0 to=0,0,0 block=minecraft:stone")
+    res = dispatch(s, "clone.translate frm=0,0,0 to=0,0,0 offset=2,0,0 count=3")
+    assert "clone-translated 3" in res
+    assert s.grid.get(2, 0, 0).name == "minecraft:stone"
+    assert s.grid.get(4, 0, 0).name == "minecraft:stone"
+    assert s.grid.get(6, 0, 0).name == "minecraft:stone"
+    assert s.undo()
+    assert s.grid.get(2, 0, 0).name == "minecraft:air"
+
+
+def test_dispatch_clone_cardinal():
+    s = Session.new((9, 2, 9))
+    dispatch(s, "add.box frm=6,0,4 to=6,0,4 block=minecraft:stone")
+    res = dispatch(s, "clone.cardinal frm=6,0,4 to=6,0,4 center=4,4")
+    assert "clone-cardinal 3" in res
+    for pos in ((4, 0, 6), (2, 0, 4), (4, 0, 2)):
+        assert s.grid.get(*pos).name == "minecraft:stone"
+
+
+def test_dispatch_clone_translate_rejects_out_of_bounds_source():
+    s = Session.new((4, 4, 4))
+    res = dispatch(s, "clone.translate frm=0,0,0 to=9,0,0 offset=1,0,0")
+    assert "error" in res and "clone_source_out_of_bounds" in res
+
+
 def test_translated_does_not_wrap_around():
     """Translated should clip to bounds, not roll voxels to the opposite edge."""
-    import numpy as np
     from schematica.shapes.primitives import Box
     from schematica.shapes.transforms import Translated
 
@@ -60,7 +84,6 @@ def test_translated_does_not_wrap_around():
 
 
 def test_translated_partial_in_bounds():
-    import numpy as np
     from schematica.shapes.primitives import Box
     from schematica.shapes.transforms import Translated
 
@@ -72,7 +95,6 @@ def test_translated_partial_in_bounds():
 
 
 def test_translated_negative_offset():
-    import numpy as np
     from schematica.shapes.primitives import Box
     from schematica.shapes.transforms import Translated
 

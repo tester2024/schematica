@@ -38,6 +38,16 @@ def _coord_tuple(s: str) -> tuple[int, int, int]:
     return tuple(int(p) for p in parts)  # type: ignore[return-value]
 
 
+def _coord_pair(s: str) -> tuple[float, float]:
+    if isinstance(s, (tuple, list)) and len(s) == 2:
+        return (float(s[0]), float(s[1]))
+    s = s.strip().lstrip("(").rstrip(")")
+    parts = s.replace(",", " ").split()
+    if len(parts) != 2:
+        raise ValueError(f"expected x,z got {s}")
+    return (float(parts[0]), float(parts[1]))
+
+
 def _size_tuple(s: str) -> tuple[int, int, int]:
     return _coord_tuple(s.replace("x", ","))
 
@@ -423,6 +433,20 @@ def cmd_rotate(s: Session, times: int, axes: str = "xy") -> str:
     return f"rotated {times} {axes}"
 
 
+def cmd_clone_translate(s: Session, frm: str, to: str, offset: str,
+                        count: int = 1, include_air: bool = False) -> str:
+    n = s.clone_translate(_coord_tuple(frm), _coord_tuple(to), _coord_tuple(offset),
+                          count=count, include_air=include_air)
+    return f"clone-translated {n} voxels"
+
+
+def cmd_clone_cardinal(s: Session, frm: str, to: str, center: str,
+                       include_air: bool = False) -> str:
+    n = s.clone_cardinal(_coord_tuple(frm), _coord_tuple(to), _coord_pair(center),
+                         include_air=include_air)
+    return f"clone-cardinal {n} voxels"
+
+
 def cmd_generate_terrain(s: Session, seed: int = 0, amplitude: int = 8,
                          scale: float = 0.06,
                          top: str = "minecraft:grass_block",
@@ -657,6 +681,15 @@ COMMANDS: dict[str, CommandSpec] = {
     "rotate": CommandSpec("rotate", (
         ArgSpec("times", "int"), ArgSpec("axes", "str", default="xy", required=False),
     ), cmd_rotate, "rotate 90*times in xy/xz/yz plane"),
+    "clone.translate": CommandSpec("clone.translate", (
+        ArgSpec("frm", "coords"), ArgSpec("to", "coords"), ArgSpec("offset", "coords"),
+        ArgSpec("count", "int", default=1, required=False),
+        ArgSpec("include_air", "bool", default=False, required=False),
+    ), cmd_clone_translate, "clone source box by offset, repeated count times"),
+    "clone.cardinal": CommandSpec("clone.cardinal", (
+        ArgSpec("frm", "coords"), ArgSpec("to", "coords"), ArgSpec("center", "str"),
+        ArgSpec("include_air", "bool", default=False, required=False),
+    ), cmd_clone_cardinal, "clone source box to the other three Y-axis cardinal rotations"),
     "generate.terrain": CommandSpec("generate.terrain", (
         ArgSpec("seed", "int", default=0, required=False),
         ArgSpec("amplitude", "int", default=8, required=False),

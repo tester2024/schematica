@@ -172,6 +172,11 @@ def _run_checks(name: str, kwargs: dict[str, Any], session: Session) -> list[v.C
         return v.check_mirror(kwargs["axis"])
     if name == "rotate":
         return v.check_rotate(kwargs["times"], kwargs.get("axes", "xy"))
+    if name == "clone.translate":
+        return v.check_clone_translate(kwargs["frm"], kwargs["to"], kwargs["offset"],
+                                       kwargs.get("count", 1), session)
+    if name == "clone.cardinal":
+        return v.check_clone_cardinal(kwargs["frm"], kwargs["to"], kwargs["center"], session)
     if name == "generate.terrain":
         return []
     if name == "generate.tree":
