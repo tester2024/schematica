@@ -4,8 +4,9 @@ Python toolkit and interactive REPL for building Minecraft Java Edition
 schematics, packaged as an AI skill. Compose geometry primitives, shapely
 polygons, trimesh meshes, heightmaps, boolean ops, and procedural generators
 into structures, with session-based editing (undo/redo), multi-view PNG
-previews, and Sponge `.schem` export. The AI agent is the creative driver:
-it uses this toolkit to realize the user's request.
+previews, and Sponge `.schem`, MCEdit `.schematic`, and Litematica `.litematic`
+export. The AI agent is the creative driver: it uses this toolkit to realize
+the user's request.
 
 ## Install
 
@@ -22,13 +23,16 @@ Or runtime deps only:
 pip install -r scripts/requirements.txt
 ```
 
-For minecraft-data block catalogs, vendor the PrismarineJS repo:
+For minecraft-data block catalogs, vendor the PrismarineJS repo at the repo or
+skill root, or point `SCHEMATICA_MINECRAFT_DATA` at any clone:
 
 ```bash
 git clone https://github.com/PrismarineJS/minecraft-data minecraft_data
 ```
 
-Without it, a small built-in fallback block list is used.
+Without it, a built-in fallback block list is used. The fallback covers common
+structural blocks plus colored wool, stained glass, terracotta, and concrete,
+but it is not a full per-version catalog.
 
 ## Quick start (library)
 
@@ -98,6 +102,8 @@ preview out_dir=previews
 | `stats` | | shape/volume/solid/palette |
 | `preview` | `out_dir=DIR` | top/front/right/iso PNG |
 | `export` | `path=FILE.schem` | Sponge v2 |
+| `export.mcedit` | `path=FILE.schematic` | legacy 1.12-era MCEdit |
+| `export.litematic` | `path=FILE.litematic` | Litematica |
 | `save` / `load` | `path=FILE.json` | native session |
 | `help` | | list commands |
 | `exit` | | quit REPL |
@@ -134,7 +140,7 @@ scripts/
     shapes/      primitives, polygon, mesh, heightmap, transforms, boolean
     generators/  noise, templates
     render/      matplotlib voxel preview -> PNG
-    export/      Sponge .schem (nbtlib)
+    export/      Sponge .schem, MCEdit .schematic, Litematica .litematic
     session/     Session, History, Commands
     cli/         REPL, parser, validation
   tests/         developer test suite
@@ -157,12 +163,16 @@ references/       docs loaded on demand
 - **Python 3.14 + amulet-core**: amulet-core's C++ extensions may lack wheels on
   very new Python. The default backend is `nbtlib` (pure Python) which works on
   3.11-3.14. Install `amulet-core` only on 3.11-3.13.
-- **Large grids**: matplotlib preview caps around ~32³ comfortably. For 64³+,
-  preview switches to trimesh rasterizer (planned; see roadmap).
+- **Large grids**: matplotlib 3D voxel preview is comfortable around ~32³.
+  Larger dense grids automatically use downsampled 2D projected previews;
+  chunked grids render projected previews without materialising dense arrays.
 - **Backslashes in REPL scripts**: shlex treats `\` as escape. Use forward
   slashes in `path=` arguments, or quote the whole path.
 - **minecraft-data submodule missing**: the registry falls back to a small
   built-in block list. Validate real builds against a vendored `minecraft_data/`.
+- **Legacy versions**: for 1.7-1.12 colored blocks, prefer MCEdit `.schematic`.
+  Sponge export warns when a pre-1.13 `data_version` is paired with modern
+  flattened blockstate names.
 
 ### Extending the toolkit
 

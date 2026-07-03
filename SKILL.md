@@ -1,6 +1,6 @@
 ---
 name: schematica
-description: "Schematica is a Python toolkit and interactive REPL for building Minecraft Java Edition schematics, exposed as an AI skill. Use this skill when the user asks to build, generate, design, or export Minecraft structures, schematics, .schem files, voxel maps, or 3D builds programmatically; when the user wants a procedural or creative toolkit for Minecraft builds; when the user mentions shapes, polygons, geometry, heightmaps, meshes, sessions, previews, or Sponge schematics; or when the user wants to script Minecraft map construction from Python or a REPL with undo/redo, block palettes, and multi-view PNG previews. Also use for tasks involving minecraft-data block catalogs, blockstate validation, trimesh/shapely geometry voxelization, or Perlin terrain. The AI agent is the creative driver: it composes shapes, blocks, and generators from this toolkit to realize the user's request."
+description: "Schematica is a Python toolkit and interactive REPL for building Minecraft Java Edition schematics, exposed as an AI skill. Use this skill when the user asks to build, generate, design, or export Minecraft structures, schematics, .schem/.schematic/.litematic files, voxel maps, or 3D builds programmatically; when the user wants a procedural or creative toolkit for Minecraft builds; when the user mentions shapes, polygons, geometry, heightmaps, meshes, sessions, previews, Sponge schematics, MCEdit schematics, or Litematica; or when the user wants to script Minecraft map construction from Python or a REPL with undo/redo, block palettes, and multi-view PNG previews. Also use for tasks involving minecraft-data block catalogs, blockstate validation, trimesh/shapely geometry voxelization, or Perlin terrain. The AI agent is the creative driver: it composes shapes, blocks, and generators from this toolkit to realize the user's request."
 ---
 
 # Schematica - Minecraft Schematic Toolkit (AI Skill)
@@ -9,13 +9,13 @@ description: "Schematica is a Python toolkit and interactive REPL for building M
 
 Schematica is a Python 3.11+ toolkit and interactive REPL for constructing
 Minecraft Java Edition structures as 3D voxel grids and exporting them as
-Sponge `.schem` schematic files. It is packaged as an AI skill: the agent
-loading this skill becomes the creative director, composing the toolkit's
-geometry primitives, shapely polygons, trimesh meshes, heightmaps, boolean
-ops, transforms, and procedural generators into the build the user asked for.
-A session model supports incremental appends, undo/redo, block palettes,
-versioned block catalogs, and multi-view PNG previews for the agent to verify
-its work.
+Sponge `.schem`, legacy MCEdit `.schematic`, or Litematica `.litematic` files.
+It is packaged as an AI skill: the agent loading this skill becomes the
+creative director, composing geometry primitives, shapely polygons, trimesh
+meshes, heightmaps, boolean ops, transforms, and procedural generators into
+the build the user asked for. A session model supports incremental appends,
+undo/redo, block palettes, versioned block catalogs, and multi-view PNG
+previews for the agent to verify its work.
 
 Two storage backends are supported:
 - **Dense** (`VoxelGrid`, default): a single contiguous `np.uint16` array. Best
@@ -42,8 +42,8 @@ Trigger this skill whenever the user:
 - Needs a session-based workflow: "create session, append shape, undo, export".
 
 Do **not** use this skill for Minecraft Bedrock, runtime world editing via
-protocol packets, or rendering/export of `.mcstructure` (Bedrock) — only Java
-Sponge `.schem` is supported on day one.
+protocol packets, or rendering/export of `.mcstructure` (Bedrock). The toolkit
+targets Java Edition schematic-style files, not live server/world mutation.
 
 ## Big-map support (chunked backend)
 
@@ -94,12 +94,30 @@ pip install -e ".[amulet]"
 ```
 
 For full per-version block catalogs (instead of the built-in fallback), vendor
-the PrismarineJS minecraft-data repo into the skill root:
+the PrismarineJS minecraft-data repo into the skill root, which is the
+directory containing `SKILL.md`:
 
 ```bash
 git clone https://github.com/PrismarineJS/minecraft-data minecraft_data
-# or set SCHEMATICA_MINECRAFT_DATA env var to the repo path
+# or set SCHEMATICA_MINECRAFT_DATA to any minecraft-data clone path
 ```
+
+The loader checks `SCHEMATICA_MINECRAFT_DATA`, then `<skill_root>/minecraft_data`,
+then `scripts/minecraft_data`. Without a full catalog it uses a fallback block
+list that covers common structural blocks plus colored wool, stained glass,
+terracotta, and concrete.
+
+### Version and legacy caveats
+
+- Modern Java versions (1.13+) work best because Sponge and Litematica use
+  flattened blockstate strings such as `minecraft:red_wool`.
+- Pre-flattening targets (1.7-1.12, including 1.8) use numeric IDs plus metadata.
+  Use `export.mcedit` / `write_mcedit` for legacy colored blocks because it
+  writes common metadata values for wool, stained glass, terracotta, concrete,
+  stone variants, planks, logs, and red sand.
+- Sponge export warns when `data_version < 1451` and the palette contains modern
+  flattened names or blockstate properties. Treat that warning as a signal to
+  switch to MCEdit or target a post-1.13 data version.
 
 ### Two entry points
 
@@ -134,7 +152,7 @@ procedural detail. This combines CLI validation with Python flexibility.
 2. Append/erase shapes via `session.add(shape, block)` / `session.subtract(shape)`.
 3. Replace, paint, transform, undo/redo as needed.
 4. Render previews with `preview(grid, out_dir)`.
-5. Export Sponge schematics with `write_sponge(grid, path)`.
+5. Export Sponge, MCEdit, or Litematica schematics with the matching writer.
 6. Save/load the full session (grid + palette + history) as JSON.
 
 ### Key references
@@ -151,7 +169,7 @@ Load these on demand for detailed information:
 - `references/sponge_format.md` — Sponge `.schem` v2 NBT layout and encoder details.
 - `references/block_registry.md` — minecraft-data loading, fallback catalog, blockstate strings.
 - `references/preview_rendering.md` — matplotlib voxel renderer and per-block colors.
-- `references/roadmap.md` — phases done vs remaining (WFC, litematic).
+- `references/roadmap.md` — phases done vs remaining.
 
 ### Bundled toolkit (scripts/)
 
@@ -169,6 +187,8 @@ it into context unless patching. Key modules:
 - `schematica.generators` — `perlin2d`, `fbm2d`, `apply_terrain`, `apply_tree`, `terrain_heightmap`
 - `schematica.render.preview` — `preview` (PNG previews)
 - `schematica.export.sponge` — `write_sponge` (`.schem` writer)
+- `schematica.export.mcedit` — `write_mcedit` (legacy `.schematic` writer)
+- `schematica.export.litematic` — `write_litematic` (`.litematic` writer)
 - `schematica.session` — `Session`, `History`, `CommandSpec` (40+ commands)
 - `schematica.cli.repl` — `dispatch`, `run_script`, `repl_main`
 - `schematica.cli.validation` — `CheckResult` + 29 `check_*` functions
