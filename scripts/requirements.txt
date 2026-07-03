@@ -1,0 +1,8 @@
+numpy>=1.26
+nbtlib>=1.12.1
+shapely>=2.0
+trimesh>=4.0
+matplotlib>=3.8
+prompt_toolkit>=3.0
+noise>=1.2.2
+pillow>=10.0

@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "schematica"
+version = "0.1.0"
+description = "AI-driven Minecraft Java schematic map builder"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Schematica Contributors"}]
+dependencies = [
+    "numpy>=1.26",
+    "nbtlib>=1.12.1",
+    "shapely>=2.0",
+    "trimesh>=4.0",
+    "matplotlib>=3.8",
+    "prompt_toolkit>=3.0",
+    "noise>=1.2.2",
+    "pillow>=10.0",
+]
+
+[project.optional-dependencies]
+amulet = ["amulet-core>=1.9.41"]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "hypothesis>=6.100", "ruff>=0.5", "mypy>=1.10"]
+
+[project.scripts]
+schematica = "schematica.cli.repl:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "W"]
+ignore = ["E501", "N806", "N803", "B007", "B008", "B904", "E741"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "golden: byte/px snapshot regression tests",
+    "slow: long-running tests",
+]

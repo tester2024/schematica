@@ -1,0 +1,67 @@
+"""Tests for Session + history."""
+from __future__ import annotations
+
+import numpy as np
+import pytest
+
+from schematica.session.session import Session
+from schematica.shapes.primitives import Box, Sphere
+
+
+def test_session_new_air():
+    s = Session.new((4, 4, 4))
+    assert s.grid.nonempty_count() == 0
+    assert s.version == "1.20.1"
+
+
+def test_session_add_box():
+    s = Session.new((8, 8, 8))
+    s.add(Box(0, 0, 0, 2, 2, 2), "minecraft:stone")
+    assert s.grid.nonempty_count() == 27
+
+
+def test_session_subtract():
+    s = Session.new((8, 8, 8))
+    s.add(Box(0, 0, 0, 3, 3, 3), "minecraft:stone")
+    s.subtract(Box(1, 1, 1, 2, 2, 2))
+    assert s.grid.nonempty_count() == 64 - 8
+
+
+def test_session_undo_redo():
+    s = Session.new((8, 8, 8))
+    s.add(Box(0, 0, 0, 1, 1, 1), "minecraft:stone")
+    assert s.grid.nonempty_count() == 8
+    assert s.undo()
+    assert s.grid.nonempty_count() == 0
+    assert not s.undo()
+    assert s.redo()
+    assert s.grid.nonempty_count() == 8
+    assert not s.redo()
+
+
+def test_session_replace():
+    s = Session.new((4, 4, 4))
+    s.add(Box(0, 0, 0, 3, 3, 3), "minecraft:stone")
+    n = s.replace("minecraft:stone", "minecraft:dirt")
+    assert n == 64
+    assert s.grid.count("minecraft:dirt") == 64
+
+
+def test_session_save_load_roundtrip(tmp_path):
+    s = Session.new((4, 4, 4))
+    s.add(Box(0, 0, 0, 1, 1, 1), "minecraft:stone")
+    p = tmp_path / "sess.json"
+    s.save(p)
+    s2 = Session.load(p)
+    assert s2.grid.shape == (4, 4, 4)
+    assert s2.grid.nonempty_count() == 8
+    assert s2.grid == s.grid
+
+
+def test_session_paint_only_solid():
+    s = Session.new((4, 4, 4))
+    s.add(Box(0, 0, 0, 1, 1, 1), "minecraft:stone")
+    # paint only affects existing solid voxels
+    s.paint(Box(0, 0, 0, 3, 3, 3), "minecraft:dirt")
+    assert s.grid.count("minecraft:dirt") == 8
+    assert s.grid.count("minecraft:stone") == 0
