@@ -60,8 +60,13 @@ run `python -m schematica --script <path>` from anywhere.
 | Report state | `stats` |
 | Render PNGs | `preview out_dir=DIR` |
 | Write Sponge schem | `export path=FILE.schem` |
+| Write legacy schematic | `export.mcedit path=FILE.schematic` |
+| Write Litematica | `export.litematic path=FILE.litematic` |
 | Persist session | `save path=FILE.schematica` |
 | Resume session | `load path=FILE.schematica` |
+| Generate terrain | `generate.terrain seed=N amplitude=N` |
+| Generate tree | `generate.tree at=x,y,z height=N` |
+| Generate WFC patch | `generate.wfc frm=x,y,z to=x,y,z tileset=mossy_ruins` |
 
 ## Argument syntax rules (critical)
 
@@ -259,22 +264,38 @@ this case. Use `stats` afterwards to sanity-check.
 ## Block catalog caveats
 
 The fallback catalog (used when `minecraft_data/` is not vendored) contains
-only these blocks: air, stone, grass_block, dirt, cobblestone, oak_planks,
-bedrock, sand, oak_log, glass, bricks, obsidian, oak_fence, glowstone,
-end_stone, quartz_block, purple_stained_glass, prismarine, sea_lantern,
-red_sand, packed_ice. Only `oak_log` has a state (`axis`, default `y`).
+common structural blocks plus all 16 colors of wool, stained glass, terracotta,
+and concrete. Only `oak_log` has a state (`axis`, default `y`) in fallback
+mode, so state-heavy blocks like stairs, doors, slabs, fences, and waterlogged
+variants still need the full minecraft-data catalog.
 
 To get the full vanilla catalog per version, vendor the submodule into the
-skill root:
+skill root or set `SCHEMATICA_MINECRAFT_DATA`:
 ```bash
 git clone https://github.com/PrismarineJS/minecraft-data minecraft_data
 ```
 Then `BlockRegistry.for_version("1.20.1")` reads `minecraft_data/data/pc/1.20.1/blocks.json`.
 
-## Procedural generation (library only, not in CLI today)
+For 1.7-1.12 targets, prefer `export.mcedit` when colored wool/glass/terracotta
+metadata matters. Sponge export warns if you pair a pre-1.13 `data_version`
+with modern flattened block names.
 
-The CLI does not yet expose `generate terrain` commands. For procedural or
-terrain work, use the library API from a Python script instead:
+## Procedural generation
+
+The CLI exposes `generate.terrain`, `generate.tree`, and `generate.wfc` for
+common cases:
+
+```
+session.new size=64x32x64 version=1.20.1
+generate.terrain seed=42 amplitude=8 scale=0.06
+generate.tree at=8,1,8 height=7
+generate.wfc frm=20,1,20 to=30,6,30 tileset=mossy_ruins seed=7
+preview out_dir=terrain_previews
+export path=terrain.schem
+```
+
+For custom loops, placement rules, or generator parameters that the CLI does
+not expose, switch to the library API from a Python script:
 
 ```python
 from schematica.session.session import Session
@@ -334,8 +355,9 @@ export path=final.schem
 - User wants to **iterate** on a build → `save` between scripts, `load` to resume.
 - User wants **terrain/villages** → use library API (Python script), not CLI.
 - User wants **previews** → always run `preview out_dir=...` last; read PNGs to verify visually (agents can't see them, but the file existing + non-trivial size is a sanity check).
-- User wants a **non-Sponge format** (MCEdit/litematic) → not yet supported; tell them, fall back to Sponge.
-- User wants a **specific MC version** → pass `version=1.21` to `session.new`; ensure `minecraft_data/data/pc/1.21/blocks.json` exists or use fallback (1.20.1-era blocks).
+- User wants **MCEdit / legacy 1.8-ish workflow** → use `export.mcedit path=build.schematic`.
+- User wants **Litematica** → use `export.litematic path=build.litematic`.
+- User wants a **specific MC version** → pass `version=1.21` to `session.new`; ensure `minecraft_data/data/pc/1.21/blocks.json` exists or use fallback common blocks.
 
 ## Best practices for code (library API)
 

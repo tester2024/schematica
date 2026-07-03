@@ -1,6 +1,6 @@
 # Roadmap
 
-## Done (phases 0-8)
+## Done (phases 0-11)
 
 - **Phase 0 — Scaffold**: pyproject, ruff/pytest/mypy config, package layout.
 - **Phase 1 — Blocks + Palette**: `Block` dataclass, `BlockRegistry` with
@@ -19,38 +19,39 @@
   command spec table, arg coercion.
 - **Phase 8 — Procedural generators**: Perlin noise, terrain applicator, tree
   template.
+- **Phase 9 — Advanced generators**: wave function collapse tilesets and texture
+  palette tools.
+- **Phase 10 — Export formats**: MCEdit `.schematic` and Litematica `.litematic`
+  exporters with dense/chunked parity tests.
+- **Phase 11 — Review hardening**: normalized registry names, unique fallback
+  ids, expanded colored fallback blocks, MCEdit legacy metadata for common
+  colored blocks, Sponge legacy palette warnings, and safe large-grid previews.
 
-## Remaining (phases 10-11)
+## Remaining
 
-### Phase 10 — Wave function collapse
-- `scripts/schematica/generators/wfc.py`: tile-based WFC over block palettes.
-- Use for mossy ruins, tapestries, textured surfaces.
-- Must converge or raise `Contradiction` within iteration cap.
-
-### Phase 11 — Polish
-- MCEdit `.schematic` exporter (legacy format).
-- Litematic `.litematic` exporter (layered regions + metadata).
+### Polish
 - `mypy --strict` clean across the package.
 - Byte-equal golden `.schem` fixtures + Pillow `dhash` PNG regression.
 - Hypothesis property tests for shapes and session invariants.
-- `trimesh`-based preview fallback for >32³ grids.
 - Full minecraft-data submodule vendoring + `BlockRegistry.list_versions`
   in tests.
 - Example gallery: `examples/castle.py`, `examples/terrain.py`,
   `examples/village.py`.
+- Sponge/MCEdit/Litematica importers for round-trip editing.
+- Block entities / tile entities for signs, chests, and spawners.
 
 ## Known limitations
 
 - **amulet-core unavailable on Python 3.14**: the default backend is nbtlib.
   amulet-core is an optional extra for 3.11-3.13 only.
 - **No block entities**: chests, signs, spawners are not written. Only
-  blockstates.
+  blockstates and legacy block metadata are supported.
 - **No biomes**: Sponge v2 has no biome array; v3 would be needed.
 - **Cylinder axis**: only `axis="y"` is implemented.
 - **Translated shape uses np.roll**: wraps around grid edges. For non-wrapping
   translation, clamp coords manually.
-- **CLI has no `generate` commands**: terrain/tree are library-only.
-- **Preview performance**: matplotlib caps around 32³.
+- **Preview performance**: matplotlib 3D voxels cap around 32³; larger grids use
+  downsampled projected previews.
 - **Large palette memory**: palette is a flat list; O(N) for N blockstates.
   Fine for typical builds (<1000 palette entries).
 
@@ -67,5 +68,6 @@
    glass" in a single `Union`; must call `session.add` twice. Justified by
    boolean-op simplicity.
 4. **Fallback block catalog** (2026-07): keeps the package importable without
-   the minecraft-data submodule. Trade-off: only ~20 blocks available
-   offline; users wanting full vanilla must vendor the submodule.
+   the minecraft-data submodule. Trade-off: common structural and colored team
+   blocks are available offline, but exact per-version state coverage still
+   requires minecraft-data.

@@ -2,7 +2,7 @@
 
 ## `schematica.render.preview`
 
-### `preview(grid, out_dir, views=("top", "front", "right", "iso")) -> list[Path]`
+### `preview(grid, out_dir, views=("top", "front", "right", "iso"), max_voxels=96**3, max_dim=256) -> list[Path]`
 Renders the VoxelGrid to PNG files in `out_dir`. Creates the directory if it
 does not exist. Returns the list of written paths.
 
@@ -14,8 +14,8 @@ Files are named `preview_<view>.png`. Views:
 
 ## Backend
 
-`matplotlib`'s `mpl_toolkits.mplot3d.Axes3D.voxels` under the `Agg` backend
-(headless). The renderer:
+Small dense grids use `matplotlib`'s `mpl_toolkits.mplot3d.Axes3D.voxels` under
+the `Agg` backend (headless). The renderer:
 1. Builds an `(sx, sy, sz, 4)` RGBA array from the palette.
 2. Fills voxels where `grid.data != 0` (non-air) with their block's color and
    alpha 1.0; air voxels get alpha 0.0 (transparent).
@@ -23,6 +23,11 @@ Files are named `preview_<view>.png`. Views:
 4. Sets `view_init(elev, azim)` per view, `set_box_aspect((sx, sy, sz))` so the
    aspect ratio matches the grid.
 5. Saves at 100 dpi, 6×6 inches.
+
+Large dense grids above `max_voxels` emit a `RuntimeWarning` and switch to
+downsampled 2D projected previews. `ChunkedGrid` previews always use projected
+rendering and do not materialise a full dense array. `max_dim` caps the longest
+rendered image axis.
 
 ## Color map
 
@@ -50,13 +55,11 @@ non-trivially sized (>100 bytes).
 
 ## Performance
 
-- Comfortable up to ~32³ voxels. At 64³ the renderer slows noticeably because
-  matplotlib's voxels are not GPU-accelerated.
-- For large grids, consider downsampling: `grid.subregion(...)` or
-  `grid.data[::2, ::2, ::2]` before rendering.
-- Planned upgrade path: route large grids through `trimesh.voxel.VoxelGrid`
-  + `scene.save_image()` for orthographic PNGs without matplotlib. See
-  `references/roadmap.md`.
+- Comfortable 3D voxel rendering is still around ~32³. At larger sizes the
+  projected fallback is intentionally less detailed but much safer.
+- For visual debugging on large maps, use `views=("top",)` first, then add
+  `front` or `right` only if needed.
+- For final beauty shots, render a small `subregion(...)` with the 3D path.
 
 ## Reading previews as an agent
 

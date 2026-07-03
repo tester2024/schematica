@@ -1,7 +1,9 @@
 # Generators
 
-Procedural and AI generators. Currently all are **library-only** (not exposed
-in the CLI). Drive them from a Python script.
+Procedural and AI generators. Terrain, tree, and WFC helpers are available
+through both the library API and CLI commands (`generate.terrain`,
+`generate.tree`, `generate.wfc`). Use Python when you need loops, custom
+placement rules, or generator parameters that the CLI does not expose.
 
 ## `schematica.generators.noise`
 
@@ -45,10 +47,18 @@ apply_tree(s, x=8, z=8, height=7)
 apply_tree(s, x=20, z=14, height=5)
 ```
 
-## Planned generators (roadmap)
+## Wave function collapse
 
-- `generators/wfc.py` — Wave function collapse over block palettes.
-- More templates: village, temple, tower, dungeon.
+`schematica.generators.wfc` provides tile-based wave function collapse over
+block palettes. The CLI exposes a `mossy_ruins` tileset and a small wildcard
+tileset:
+
+```
+generate.wfc frm=4,1,4 to=12,6,12 tileset=mossy_ruins seed=42
+```
+
+More templates such as village, temple, tower, and dungeon remain roadmap
+items.
 
 ## Recipe: terrain + trees + export
 
