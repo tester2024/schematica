@@ -273,6 +273,135 @@ _COMMON_FALLBACK_BLOCKS: list[dict[str, object]] = [
 _FALLBACK_EXTRA_BLOCKS.extend(_COMMON_FALLBACK_BLOCKS)
 _next_fallback_id += len(_COMMON_FALLBACK_BLOCKS)
 
+# Quartz and smooth quartz variants (blocks, slabs, stairs) so modern builds
+# don't KeyError without a vendored minecraft-data tree.
+_QUARTZ_FAMILY: list[dict[str, object]] = [
+    {"id": _next_fallback_id, "name": "minecraft:smooth_quartz", "displayName": "Smooth Quartz"},
+    {"id": _next_fallback_id + 1, "name": "minecraft:quartz_pillar",
+     "displayName": "Quartz Pillar", "states": _AXIS_STATES},
+    {"id": _next_fallback_id + 2, "name": "minecraft:chiseled_quartz_block",
+     "displayName": "Chiseled Quartz Block"},
+    {"id": _next_fallback_id + 3, "name": "minecraft:quartz_slab",
+     "displayName": "Quartz Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 4, "name": "minecraft:smooth_quartz_slab",
+     "displayName": "Smooth Quartz Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 5, "name": "minecraft:quartz_stairs",
+     "displayName": "Quartz Stairs", "states": _STAIRS_STATES},
+    {"id": _next_fallback_id + 6, "name": "minecraft:smooth_quartz_stairs",
+     "displayName": "Smooth Quartz Stairs", "states": _STAIRS_STATES},
+]
+_FALLBACK_EXTRA_BLOCKS.extend(_QUARTZ_FAMILY)
+_next_fallback_id += len(_QUARTZ_FAMILY)
+
+# Concrete slabs + stairs and stone-variant slabs + stairs for modern detailing.
+_CONCRETE_SLAB_STAIRS: list[dict[str, object]] = []
+for _color in _FALLBACK_COLORS:
+    _display_color = _color.replace("_", " ").title()
+    _CONCRETE_SLAB_STAIRS.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_color}_concrete_slab",
+        "displayName": f"{_display_color} Concrete Slab",
+        "states": _SLAB_STATES,
+    })
+    _next_fallback_id += 1
+    _CONCRETE_SLAB_STAIRS.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_color}_concrete_stairs",
+        "displayName": f"{_display_color} Concrete Stairs",
+        "states": _STAIRS_STATES,
+    })
+    _next_fallback_id += 1
+_FALLBACK_EXTRA_BLOCKS.extend(_CONCRETE_SLAB_STAIRS)
+
+_STONE_VARIANT_SLABS_STAIRS: list[dict[str, object]] = [
+    {"id": _next_fallback_id, "name": "minecraft:smooth_stone_slab",
+     "displayName": "Smooth Stone Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 1, "name": "minecraft:sandstone_slab",
+     "displayName": "Sandstone Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 2, "name": "minecraft:red_sandstone_slab",
+     "displayName": "Red Sandstone Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 3, "name": "minecraft:nether_brick_slab",
+     "displayName": "Nether Brick Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 4, "name": "minecraft:smooth_sandstone_stairs",
+     "displayName": "Smooth Sandstone Stairs", "states": _STAIRS_STATES},
+    {"id": _next_fallback_id + 5, "name": "minecraft:red_sandstone_stairs",
+     "displayName": "Red Sandstone Stairs", "states": _STAIRS_STATES},
+    {"id": _next_fallback_id + 6, "name": "minecraft:nether_brick_stairs",
+     "displayName": "Nether Brick Stairs", "states": _STAIRS_STATES},
+    {"id": _next_fallback_id + 7, "name": "minecraft:prismarine_slab",
+     "displayName": "Prismarine Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 8, "name": "minecraft:prismarine_bricks_slab",
+     "displayName": "Prismarine Bricks Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 9, "name": "minecraft:dark_prismarine_slab",
+     "displayName": "Dark Prismarine Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 10, "name": "minecraft:prismarine_stairs",
+     "displayName": "Prismarine Stairs", "states": _STAIRS_STATES},
+    {"id": _next_fallback_id + 11, "name": "minecraft:end_stone_brick_slab",
+     "displayName": "End Stone Brick Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 12, "name": "minecraft:end_stone_brick_stairs",
+     "displayName": "End Stone Brick Stairs", "states": _STAIRS_STATES},
+    {"id": _next_fallback_id + 13, "name": "minecraft:mossy_stone_brick_slab",
+     "displayName": "Mossy Stone Brick Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 14, "name": "minecraft:mossy_stone_brick_stairs",
+     "displayName": "Mossy Stone Brick Stairs", "states": _STAIRS_STATES},
+    {"id": _next_fallback_id + 15, "name": "minecraft:mossy_cobblestone_slab",
+     "displayName": "Mossy Cobblestone Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 16, "name": "minecraft:mossy_cobblestone_stairs",
+     "displayName": "Mossy Cobblestone Stairs", "states": _STAIRS_STATES},
+    {"id": _next_fallback_id + 17, "name": "minecraft:granite_slab",
+     "displayName": "Granite Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 18, "name": "minecraft:granite_stairs",
+     "displayName": "Granite Stairs", "states": _STAIRS_STATES},
+    {"id": _next_fallback_id + 19, "name": "minecraft:polished_granite_slab",
+     "displayName": "Polished Granite Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 20, "name": "minecraft:polished_granite_stairs",
+     "displayName": "Polished Granite Stairs", "states": _STAIRS_STATES},
+    {"id": _next_fallback_id + 21, "name": "minecraft:diorite_slab",
+     "displayName": "Diorite Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 22, "name": "minecraft:diorite_stairs",
+     "displayName": "Diorite Stairs", "states": _STAIRS_STATES},
+    {"id": _next_fallback_id + 23, "name": "minecraft:andesite_slab",
+     "displayName": "Andesite Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 24, "name": "minecraft:andesite_stairs",
+     "displayName": "Andesite Stairs", "states": _STAIRS_STATES},
+    {"id": _next_fallback_id + 25, "name": "minecraft:deepslate_brick_slab",
+     "displayName": "Deepslate Brick Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 26, "name": "minecraft:deepslate_brick_stairs",
+     "displayName": "Deepslate Brick Stairs", "states": _STAIRS_STATES},
+    {"id": _next_fallback_id + 27, "name": "minecraft:deepslate_tile_slab",
+     "displayName": "Deepslate Tile Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 28, "name": "minecraft:deepslate_tile_stairs",
+     "displayName": "Deepslate Tile Stairs", "states": _STAIRS_STATES},
+    {"id": _next_fallback_id + 29, "name": "minecraft:blackstone_slab",
+     "displayName": "Blackstone Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 30, "name": "minecraft:blackstone_stairs",
+     "displayName": "Blackstone Stairs", "states": _STAIRS_STATES},
+    {"id": _next_fallback_id + 31, "name": "minecraft:smooth_basalt",
+     "displayName": "Smooth Basalt"},
+    {"id": _next_fallback_id + 32, "name": "minecraft:tuff_slab",
+     "displayName": "Tuff Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 33, "name": "minecraft:tuff_stairs",
+     "displayName": "Tuff Stairs", "states": _STAIRS_STATES},
+    {"id": _next_fallback_id + 34, "name": "minecraft:tuff_bricks",
+     "displayName": "Tuff Bricks"},
+    {"id": _next_fallback_id + 35, "name": "minecraft:tuff_brick_slab",
+     "displayName": "Tuff Brick Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 36, "name": "minecraft:tuff_brick_stairs",
+     "displayName": "Tuff Brick Stairs", "states": _STAIRS_STATES},
+    {"id": _next_fallback_id + 37, "name": "minecraft:calcite_slab",
+     "displayName": "Calcite Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 38, "name": "minecraft:calcite_stairs",
+     "displayName": "Calcite Stairs", "states": _STAIRS_STATES},
+    {"id": _next_fallback_id + 39, "name": "minecraft:chiseled_deepslate",
+     "displayName": "Chiseled Deepslate"},
+    {"id": _next_fallback_id + 40, "name": "minecraft:polished_deepslate_slab",
+     "displayName": "Polished Deepslate Slab", "states": _SLAB_STATES},
+    {"id": _next_fallback_id + 41, "name": "minecraft:polished_deepslate_stairs",
+     "displayName": "Polished Deepslate Stairs", "states": _STAIRS_STATES},
+]
+_FALLBACK_EXTRA_BLOCKS.extend(_STONE_VARIANT_SLABS_STAIRS)
+_next_fallback_id += len(_STONE_VARIANT_SLABS_STAIRS)
+
 for _color in _FALLBACK_COLORS:
     _display_color = _color.replace("_", " ").title()
     _FALLBACK_EXTRA_BLOCKS.append({
