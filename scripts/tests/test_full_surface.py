@@ -107,7 +107,7 @@ def test_cone_inverted_y_error():
     assert "error" in res and "inverted_bounds" in res
 
 
-def test_torus_negative_R_error():
+def test_torus_negative_radius_error():
     s = Session.new((32, 32, 32))
     res = dispatch(s, "add.torus center=16,16,16 R=-1 r=2 block=minecraft:stone")
     assert "error" in res and "negative_radius" in res

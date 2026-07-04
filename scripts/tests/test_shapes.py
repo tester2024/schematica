@@ -1,11 +1,15 @@
 """Tests for shape masks."""
 from __future__ import annotations
 
-import numpy as np
-import pytest
-
 from schematica.shapes.primitives import (
-    Box, Sphere, Cylinder, Cone, Pyramid, Torus, Line, Wedge,
+    Box,
+    Cone,
+    Cylinder,
+    Line,
+    Pyramid,
+    Sphere,
+    Torus,
+    Wedge,
 )
 
 
