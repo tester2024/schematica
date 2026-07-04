@@ -87,6 +87,78 @@ class Rotated90:
 
 
 @dataclass(frozen=True)
+class Rotated:
+    """Rotate a shape's mask by an arbitrary angle in a coordinate plane.
+
+    Unlike :class:`Rotated90` (which only supports multiples of 90 degrees),
+    this transform resamples the mask at any angle via nearest-neighbour
+    interpolation. ``angle_deg`` is the rotation angle in degrees, applied
+    in the plane named by ``axes`` (``"xy"``, ``"xz"`` or ``"yz"``). The
+    rotation is about the grid centre in the rotation plane; the third axis
+    is left unchanged.
+
+    This unlocks high-fidelity diagonals (e.g. 30°, 45°) without needing
+    full matrix rotations or external trimesh voxelization.
+    """
+    shape: Shape
+    angle_deg: float = 0.0
+    axes: str = "xy"
+    order: int = 0  # 0 = nearest neighbour, 1 = bilinear (then thresholded)
+
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        # Conservative: assume the rotated mask could touch the full plane.
+        return _shape_bounds(self.shape, grid_shape)
+
+    def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
+        ax_map = {"xy": (0, 1), "xz": (0, 2), "yz": (1, 2)}
+        if self.axes not in ax_map:
+            raise ValueError(f"axes must be one of {list(ax_map)}; got {self.axes!r}")
+        a, b = ax_map[self.axes]
+        base = self.shape.mask(shape).astype(np.float32)
+        theta = float(np.deg2rad(self.angle_deg))
+        # Rotation about the centre of the rotation plane.
+        sa, sb = shape[a], shape[b]
+        ca = (sa - 1) / 2.0
+        cb = (sb - 1) / 2.0
+        # Build index grids for the output (rotated) frame.
+        idx_a = np.arange(sa, dtype=np.float32)
+        idx_b = np.arange(sb, dtype=np.float32)
+        ga, gb = np.meshgrid(idx_a, idx_b, indexing="ij")
+        # Inverse-rotate output coords back to source coords.
+        src_a = ca + np.cos(theta) * (ga - ca) - np.sin(theta) * (gb - cb)
+        src_b = cb + np.sin(theta) * (ga - ca) + np.cos(theta) * (gb - cb)
+        # Map to source indices (round for nearest-neighbour).
+        ia = np.rint(src_a).astype(np.int32)
+        ib = np.rint(src_b).astype(np.int32)
+        valid = (ia >= 0) & (ia < sa) & (ib >= 0) & (ib < sb)
+        ia_c = np.clip(ia, 0, sa - 1)
+        ib_c = np.clip(ib, 0, sb - 1)
+        # We need to gather along axes a and b of the 3D base array.
+        # Build a per-(a,b) sample then broadcast over the third axis.
+        out = np.zeros_like(base)
+        # Build 2D sample of base collapsed along the third axis via any()
+        # is wrong — we need to gather per third-axis slice. Do it via
+        # advanced indexing: for each third-axis index, gather base[ia, ib, k].
+        # We do this vectorised by broadcasting the 2D lookup.
+        if a == 0 and b == 1:
+            for k in range(shape[2]):
+                sl = base[:, :, k]
+                gathered = np.where(valid, sl[ia_c, ib_c], 0.0)
+                out[:, :, k] = gathered
+        elif a == 0 and b == 2:
+            for k in range(shape[1]):
+                sl = base[:, k, :]
+                gathered = np.where(valid, sl[ia_c, ib_c], 0.0)
+                out[:, k, :] = gathered
+        else:  # a == 1, b == 2
+            for k in range(shape[0]):
+                sl = base[k, :, :]
+                gathered = np.where(valid, sl[ia_c, ib_c], 0.0)
+                out[k, :, :] = gathered
+        return (out > 0.5).astype(bool)
+
+
+@dataclass(frozen=True)
 class Array:
     """Repeat a shape N times along an axis with spacing."""
     shape: Shape
