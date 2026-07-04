@@ -101,9 +101,22 @@ The fallback catalog includes common structural blocks such as `air`, `stone`,
 `packed_ice`. It also includes all 16 colors for wool, stained glass,
 terracotta, and concrete so common team-color builds work offline.
 
-Only `oak_log` has a state (`axis`, default `y`) in fallback mode. For builds
-needing other blocks or exact version-specific states (stairs, slabs, fences,
-doors, waterlogging, etc.), vendor the minecraft-data repo.
+Common resource and mapmaking blocks are also available offline: iron/gold/
+diamond/emerald/coal/lapis/redstone blocks, beacon, chest, ender chest, ladder,
+doors, trapdoors, slabs, stairs, fences, fence gates, walls, glass panes, beds,
+carpets, barrier, torch, lantern, chain, signs, anvil, crafting table, and
+furnace.
+
+Fallback mode now carries compact schemas for common stateful blocks such as
+logs, stairs, slabs, fences, walls, doors, trapdoors, beds, chests, panes,
+furnaces, lanterns, signs, and waterlogged variants. For full fidelity across
+every vanilla block and version-specific state, still vendor the minecraft-data
+repo.
+
+`BlockRegistry.resolve(block, strict=True)` rejects unknown explicit state keys,
+invalid enum/bool/int values, repeated keys, and states on blocks with no known
+schema. Pass `strict=False` only for compatibility with already-trusted palette
+data.
 
 Fallback `by_id()` values are unique so later entries cannot overwrite earlier
 ones, but synthetic ids are used where no reliable legacy id is known. Use

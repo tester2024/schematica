@@ -56,6 +56,80 @@ class BlockDef:
         return Block(name=self.name, states=pairs)
 
 
+_HORIZONTAL_DIRECTIONS = ["north", "south", "west", "east"]
+_AXIS_STATES = [
+    {"name": "axis", "type": "enum", "values": ["x", "y", "z"], "default": "y"},
+]
+_FACING_STATE = {
+    "name": "facing", "type": "enum", "values": _HORIZONTAL_DIRECTIONS, "default": "north",
+}
+_WATERLOGGED_STATE = {"name": "waterlogged", "type": "bool", "default": False}
+_STAIRS_STATES = [
+    _FACING_STATE,
+    {"name": "half", "type": "enum", "values": ["top", "bottom"], "default": "bottom"},
+    {"name": "shape", "type": "enum", "values": [
+        "straight", "inner_left", "inner_right", "outer_left", "outer_right",
+    ], "default": "straight"},
+    _WATERLOGGED_STATE,
+]
+_SLAB_STATES = [
+    {"name": "type", "type": "enum", "values": ["top", "bottom", "double"], "default": "bottom"},
+    _WATERLOGGED_STATE,
+]
+_FENCE_STATES = [
+    {"name": "north", "type": "bool", "default": False},
+    {"name": "east", "type": "bool", "default": False},
+    {"name": "south", "type": "bool", "default": False},
+    {"name": "west", "type": "bool", "default": False},
+    _WATERLOGGED_STATE,
+]
+_WALL_STATES = [
+    {"name": "up", "type": "bool", "default": True},
+    {"name": "north", "type": "enum", "values": ["none", "low", "tall"], "default": "none"},
+    {"name": "east", "type": "enum", "values": ["none", "low", "tall"], "default": "none"},
+    {"name": "south", "type": "enum", "values": ["none", "low", "tall"], "default": "none"},
+    {"name": "west", "type": "enum", "values": ["none", "low", "tall"], "default": "none"},
+    _WATERLOGGED_STATE,
+]
+_FENCE_GATE_STATES = [
+    _FACING_STATE,
+    {"name": "in_wall", "type": "bool", "default": False},
+    {"name": "open", "type": "bool", "default": False},
+    {"name": "powered", "type": "bool", "default": False},
+]
+_TRAPDOOR_STATES = [
+    _FACING_STATE,
+    {"name": "half", "type": "enum", "values": ["top", "bottom"], "default": "bottom"},
+    {"name": "open", "type": "bool", "default": False},
+    {"name": "powered", "type": "bool", "default": False},
+    _WATERLOGGED_STATE,
+]
+_DOOR_STATES = [
+    _FACING_STATE,
+    {"name": "half", "type": "enum", "values": ["lower", "upper"], "default": "lower"},
+    {"name": "hinge", "type": "enum", "values": ["left", "right"], "default": "left"},
+    {"name": "open", "type": "bool", "default": False},
+    {"name": "powered", "type": "bool", "default": False},
+]
+_BED_STATES = [
+    _FACING_STATE,
+    {"name": "part", "type": "enum", "values": ["head", "foot"], "default": "foot"},
+    {"name": "occupied", "type": "bool", "default": False},
+]
+_CHEST_STATES = [
+    _FACING_STATE,
+    {"name": "type", "type": "enum", "values": ["single", "left", "right"], "default": "single"},
+    _WATERLOGGED_STATE,
+]
+_PANE_STATES = [
+    {"name": "north", "type": "bool", "default": False},
+    {"name": "east", "type": "bool", "default": False},
+    {"name": "south", "type": "bool", "default": False},
+    {"name": "west", "type": "bool", "default": False},
+    _WATERLOGGED_STATE,
+]
+
+
 _FALLBACK_BLOCKS: list[dict[str, object]] = [
     {"id": 0, "name": "minecraft:air", "displayName": "Air"},
     {"id": 1, "name": "minecraft:stone", "displayName": "Stone"},
@@ -65,23 +139,22 @@ _FALLBACK_BLOCKS: list[dict[str, object]] = [
     {"id": 5, "name": "minecraft:oak_planks", "displayName": "Oak Planks"},
     {"id": 7, "name": "minecraft:bedrock", "displayName": "Bedrock"},
     {"id": 12, "name": "minecraft:sand", "displayName": "Sand"},
-    {"id": 17, "name": "minecraft:oak_log", "displayName": "Oak Log",
-     "states": [{"name": "axis", "type": "enum", "values": ["x", "y", "z"], "default": "y"}]},
+    {"id": 17, "name": "minecraft:oak_log", "displayName": "Oak Log", "states": _AXIS_STATES},
     {"id": 20, "name": "minecraft:glass", "displayName": "Glass"},
     {"id": 45, "name": "minecraft:bricks", "displayName": "Bricks"},
     {"id": 49, "name": "minecraft:obsidian", "displayName": "Obsidian"},
-    {"id": 54, "name": "minecraft:oak_fence", "displayName": "Oak Fence"},
+    {"id": 85, "name": "minecraft:oak_fence", "displayName": "Oak Fence", "states": _FENCE_STATES},
     {"id": 89, "name": "minecraft:glowstone", "displayName": "Glowstone"},
     {"id": 121, "name": "minecraft:end_stone", "displayName": "End Stone"},
     {"id": 155, "name": "minecraft:quartz_block", "displayName": "Block of Quartz"},
-    {"id": 160, "name": "minecraft:purple_stained_glass", "displayName": "Purple Stained Glass"},
-    {"id": 162, "name": "minecraft:prismarine", "displayName": "Prismarine"},
-    {"id": 168, "name": "minecraft:sea_lantern", "displayName": "Sea Lantern"},
-    {"id": 173, "name": "minecraft:red_sand", "displayName": "Red Sand"},
+    {"id": 95, "name": "minecraft:purple_stained_glass", "displayName": "Purple Stained Glass"},
+    {"id": 168, "name": "minecraft:prismarine", "displayName": "Prismarine"},
+    {"id": 169, "name": "minecraft:sea_lantern", "displayName": "Sea Lantern"},
+    {"id": 12, "name": "minecraft:red_sand", "displayName": "Red Sand"},
     {"id": 174, "name": "minecraft:packed_ice", "displayName": "Packed Ice"},
     {"id": 18, "name": "minecraft:oak_leaves", "displayName": "Oak Leaves"},
     {"id": 98, "name": "minecraft:stone_bricks", "displayName": "Stone Bricks"},
-    {"id": 109, "name": "minecraft:stone_brick_stairs", "displayName": "Stone Brick Stairs"},
+    {"id": 109, "name": "minecraft:stone_brick_stairs", "displayName": "Stone Brick Stairs", "states": _STAIRS_STATES},
     {"id": 48, "name": "minecraft:mossy_cobblestone", "displayName": "Mossy Cobblestone"},
     {"id": 1, "name": "minecraft:granite", "displayName": "Granite"},
     {"id": 1, "name": "minecraft:diorite", "displayName": "Diorite"},
@@ -92,9 +165,9 @@ _FALLBACK_BLOCKS: list[dict[str, object]] = [
     {"id": 1, "name": "minecraft:amethyst_block", "displayName": "Block of Amethyst"},
     {"id": 1, "name": "minecraft:budding_amethyst", "displayName": "Budding Amethyst"},
     {"id": 1, "name": "minecraft:smooth_stone", "displayName": "Smooth Stone"},
-    {"id": 1, "name": "minecraft:oak_stairs", "displayName": "Oak Stairs"},
-    {"id": 1, "name": "minecraft:spruce_log", "displayName": "Spruce Log"},
-    {"id": 1, "name": "minecraft:birch_log", "displayName": "Birch Log"},
+    {"id": 53, "name": "minecraft:oak_stairs", "displayName": "Oak Stairs", "states": _STAIRS_STATES},
+    {"id": 1, "name": "minecraft:spruce_log", "displayName": "Spruce Log", "states": _AXIS_STATES},
+    {"id": 1, "name": "minecraft:birch_log", "displayName": "Birch Log", "states": _AXIS_STATES},
     {"id": 1, "name": "minecraft:spruce_planks", "displayName": "Spruce Planks"},
     {"id": 1, "name": "minecraft:birch_planks", "displayName": "Birch Planks"},
     {"id": 1, "name": "minecraft:water", "displayName": "Water"},
@@ -127,7 +200,7 @@ _FALLBACK_BLOCKS: list[dict[str, object]] = [
     {"id": 1, "name": "minecraft:smooth_basalt", "displayName": "Smooth Basalt"},
     {"id": 1, "name": "minecraft:end_stone_bricks", "displayName": "End Stone Bricks"},
     {"id": 1, "name": "minecraft:purpur_block", "displayName": "Purpur Block"},
-    {"id": 1, "name": "minecraft:purpur_pillar", "displayName": "Purpur Pillar"},
+    {"id": 1, "name": "minecraft:purpur_pillar", "displayName": "Purpur Pillar", "states": _AXIS_STATES},
 ]
 
 _FALLBACK_COLORS = (
@@ -146,6 +219,82 @@ for _family in ("wool", "stained_glass", "terracotta", "concrete"):
             "displayName": _display,
         })
         _next_fallback_id += 1
+
+_COMMON_FALLBACK_BLOCKS: list[dict[str, object]] = [
+    {"id": 42, "name": "minecraft:iron_block", "displayName": "Block of Iron"},
+    {"id": 41, "name": "minecraft:gold_block", "displayName": "Block of Gold"},
+    {"id": 57, "name": "minecraft:diamond_block", "displayName": "Block of Diamond"},
+    {"id": 133, "name": "minecraft:emerald_block", "displayName": "Block of Emerald"},
+    {"id": 173, "name": "minecraft:coal_block", "displayName": "Block of Coal"},
+    {"id": 22, "name": "minecraft:lapis_block", "displayName": "Lapis Lazuli Block"},
+    {"id": 152, "name": "minecraft:redstone_block", "displayName": "Block of Redstone"},
+    {"id": 138, "name": "minecraft:beacon", "displayName": "Beacon"},
+    {"id": 145, "name": "minecraft:anvil", "displayName": "Anvil"},
+    {"id": 58, "name": "minecraft:crafting_table", "displayName": "Crafting Table"},
+    {"id": 61, "name": "minecraft:furnace", "displayName": "Furnace",
+     "states": [_FACING_STATE, {"name": "lit", "type": "bool", "default": False}]},
+    {"id": 54, "name": "minecraft:chest", "displayName": "Chest", "states": _CHEST_STATES},
+    {"id": 130, "name": "minecraft:ender_chest", "displayName": "Ender Chest",
+     "states": [_FACING_STATE, _WATERLOGGED_STATE]},
+    {"id": 65, "name": "minecraft:ladder", "displayName": "Ladder",
+     "states": [_FACING_STATE, _WATERLOGGED_STATE]},
+    {"id": 102, "name": "minecraft:glass_pane", "displayName": "Glass Pane", "states": _PANE_STATES},
+    {"id": 101, "name": "minecraft:iron_bars", "displayName": "Iron Bars", "states": _PANE_STATES},
+    {"id": 96, "name": "minecraft:oak_trapdoor", "displayName": "Oak Trapdoor", "states": _TRAPDOOR_STATES},
+    {"id": 167, "name": "minecraft:iron_trapdoor", "displayName": "Iron Trapdoor", "states": _TRAPDOOR_STATES},
+    {"id": 64, "name": "minecraft:oak_door", "displayName": "Oak Door", "states": _DOOR_STATES},
+    {"id": 71, "name": "minecraft:iron_door", "displayName": "Iron Door", "states": _DOOR_STATES},
+    {"id": 107, "name": "minecraft:oak_fence_gate", "displayName": "Oak Fence Gate", "states": _FENCE_GATE_STATES},
+    {"id": 139, "name": "minecraft:cobblestone_wall", "displayName": "Cobblestone Wall", "states": _WALL_STATES},
+    {"id": 44, "name": "minecraft:stone_slab", "displayName": "Stone Slab", "states": _SLAB_STATES},
+    {"id": 126, "name": "minecraft:oak_slab", "displayName": "Oak Slab", "states": _SLAB_STATES},
+    {"id": 67, "name": "minecraft:cobblestone_stairs", "displayName": "Cobblestone Stairs", "states": _STAIRS_STATES},
+    {"id": 53, "name": "minecraft:oak_stairs", "displayName": "Oak Stairs", "states": _STAIRS_STATES},
+    {"id": 26, "name": "minecraft:red_bed", "displayName": "Red Bed", "states": _BED_STATES},
+    {"id": 166, "name": "minecraft:barrier", "displayName": "Barrier"},
+    {"id": 50, "name": "minecraft:torch", "displayName": "Torch"},
+    {"id": 76, "name": "minecraft:redstone_torch", "displayName": "Redstone Torch", "states": [
+        {"name": "lit", "type": "bool", "default": True},
+    ]},
+    {"id": 123, "name": "minecraft:redstone_lamp", "displayName": "Redstone Lamp", "states": [
+        {"name": "lit", "type": "bool", "default": False},
+    ]},
+    {"id": _next_fallback_id, "name": "minecraft:lantern", "displayName": "Lantern", "states": [
+        {"name": "hanging", "type": "bool", "default": False}, _WATERLOGGED_STATE,
+    ]},
+    {"id": _next_fallback_id + 1, "name": "minecraft:chain", "displayName": "Chain", "states": _AXIS_STATES},
+    {"id": _next_fallback_id + 2, "name": "minecraft:oak_sign", "displayName": "Oak Sign",
+     "states": [{"name": "rotation", "type": "int", "default": 0, "values": list(range(16))},
+                _WATERLOGGED_STATE]},
+    {"id": _next_fallback_id + 3, "name": "minecraft:oak_wall_sign", "displayName": "Oak Wall Sign",
+     "states": [_FACING_STATE, _WATERLOGGED_STATE]},
+]
+
+_FALLBACK_EXTRA_BLOCKS.extend(_COMMON_FALLBACK_BLOCKS)
+_next_fallback_id += len(_COMMON_FALLBACK_BLOCKS)
+
+for _color in _FALLBACK_COLORS:
+    _display_color = _color.replace("_", " ").title()
+    _FALLBACK_EXTRA_BLOCKS.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_color}_bed",
+        "displayName": f"{_display_color} Bed",
+        "states": _BED_STATES,
+    })
+    _next_fallback_id += 1
+    _FALLBACK_EXTRA_BLOCKS.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_color}_carpet",
+        "displayName": f"{_display_color} Carpet",
+    })
+    _next_fallback_id += 1
+    _FALLBACK_EXTRA_BLOCKS.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_color}_stained_glass_pane",
+        "displayName": f"{_display_color} Stained Glass Pane",
+        "states": _PANE_STATES,
+    })
+    _next_fallback_id += 1
 
 _FALLBACK_BLOCKS.extend(_FALLBACK_EXTRA_BLOCKS)
 
@@ -175,6 +324,63 @@ def _parse_block_def(raw: dict[str, object]) -> BlockDef:
         display_name=str(raw.get("displayName", raw["name"])),
         states=states,
     )
+
+
+def _coerce_state_value(schema: BlockStateSchema, value: object) -> object:
+    if schema.type == "bool":
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            low = value.lower()
+            if low == "true":
+                return True
+            if low == "false":
+                return False
+        raise ValueError(f"state '{schema.name}' expects true or false, got {value!r}")
+    if schema.type == "int":
+        if isinstance(value, bool):
+            raise ValueError(f"state '{schema.name}' expects an integer, got {value!r}")
+        try:
+            return int(value)  # type: ignore[arg-type]
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"state '{schema.name}' expects an integer, got {value!r}") from e
+    return str(value).lower() if isinstance(value, str) else value
+
+
+def _validate_state_value(block_name: str, schema: BlockStateSchema, value: object,
+                          version: str) -> object:
+    value = _coerce_state_value(schema, value)
+    if schema.values and value not in schema.values:
+        allowed = ", ".join(str(v) for v in schema.values[:12])
+        suffix = "..." if len(schema.values) > 12 else ""
+        raise ValueError(
+            f"Block {block_name} state '{schema.name}'={value!r} is invalid for "
+            f"version {version}; expected one of: {allowed}{suffix}"
+        )
+    return value
+
+
+def _validate_states(block_def: BlockDef, states: tuple[tuple[str, object], ...],
+                     version: str) -> tuple[tuple[str, object], ...]:
+    schemas = {s.name: s for s in block_def.states}
+    validated: list[tuple[str, object]] = []
+    seen: set[str] = set()
+    for key, value in states:
+        if key in seen:
+            raise ValueError(f"Block {block_def.name} repeats state '{key}' in version {version}")
+        seen.add(key)
+        schema = schemas.get(key)
+        if schema is None:
+            if not schemas:
+                raise ValueError(
+                    f"Block {block_def.name} has no known states in version {version}; "
+                    f"cannot accept explicit state '{key}'"
+                )
+            raise ValueError(
+                f"Block {block_def.name} has no state '{key}' in version {version}"
+            )
+        validated.append((key, _validate_state_value(block_def.name, schema, value, version)))
+    return tuple(validated)
 
 
 class BlockRegistry:
@@ -238,20 +444,19 @@ class BlockRegistry:
 
     def validate(self, block: Block) -> Block:
         bd = self[block.name]
-        known = {s.name for s in bd.states}
-        for k, _ in block.states:
-            if k not in known:
-                raise ValueError(
-                    f"Block {block.name} has no state '{k}' in version {self.version}"
-                )
+        _validate_states(bd, block.states, self.version)
         return block
 
-    def resolve(self, block: Block) -> Block:
+    def resolve(self, block: Block, *, strict: bool = True) -> Block:
         """Validate and fill defaults: returns a Block with all states explicit."""
         bd = self[block.name]
         if not bd.states:
+            if strict:
+                _validate_states(bd, block.states, self.version)
             return Block(name=bd.name)
         explicit = dict(block.states)
+        if strict:
+            explicit = dict(_validate_states(bd, block.states, self.version))
         for s in bd.states:
             if s.name not in explicit:
                 if s.default is None:
@@ -260,6 +465,8 @@ class BlockRegistry:
                         f"(no default) for version {self.version}"
                     )
                 explicit[s.name] = s.default
+            elif strict:
+                explicit[s.name] = _validate_state_value(bd.name, s, explicit[s.name], self.version)
         return Block(name=bd.name, states=tuple(sorted(explicit.items())))
 
     def search(self, query: str, limit: int = 50) -> list[BlockDef]:
