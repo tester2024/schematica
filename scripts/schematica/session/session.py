@@ -14,6 +14,7 @@ add/subtract/paint pipeline is backend-agnostic.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -51,7 +52,7 @@ class Session:
         else:
             grid = VoxelGrid(shape=shape)
         if fill != AIR:
-            grid.fill(fill)
+            grid.fill(reg.resolve(fill))
         return cls(version=version, grid=grid, registry=reg)
 
     @property
@@ -144,6 +145,151 @@ class Session:
             new[sel] = idx
             self._record(new)
         return self
+
+    def set_box(self, frm: tuple[int, int, int], to: tuple[int, int, int],
+                block: Block | str, *, history: bool = True,
+                clip: bool = True) -> int:
+        """Set an inclusive cuboid directly, optimized for procedural builders.
+
+        Unlike ``add(Box(...))``, this does not build a shape mask. It resolves
+        the block through the session registry, clips by default, and records a
+        single history delta unless ``history=False`` is used.
+        """
+        bounds = _clipped_box(frm, to, self.grid.shape, clip=clip)
+        if bounds is None:
+            return 0
+        x0, y0, z0, x1, y1, z1 = bounds
+        idx = self.grid.palette.add(self._resolve(block))
+        if self.is_chunked:
+            return self._set_box_chunked(x0, y0, z0, x1, y1, z1, idx, history=history)
+        g = self._dense
+        region = g.data[x0:x1 + 1, y0:y1 + 1, z0:z1 + 1]
+        changed = region != idx
+        count = int(np.count_nonzero(changed))
+        if count == 0:
+            return 0
+        if history:
+            local_x, local_y, local_z = np.nonzero(changed)
+            coords_delta = (local_x + x0, local_y + y0, local_z + z0)
+            old_values = region[changed].copy()
+            region[...] = idx
+            self.history.push(Delta(
+                coords=coords_delta,
+                old_values=old_values,
+                new_values=np.full(count, idx, dtype=np.uint16),
+            ))
+            return count
+        region[...] = idx
+        self.history.clear()
+        return count
+
+    def set_many(self, coords: Iterable[tuple[int, int, int]], block: Block | str, *,
+                 history: bool = True, skip_out_of_bounds: bool = True) -> int:
+        """Set many points to one block with one palette lookup and history delta."""
+        sx, sy, sz = self.grid.shape
+        points: dict[tuple[int, int, int], None] = {}
+        for x, y, z in coords:
+            pos = (int(x), int(y), int(z))
+            in_bounds = 0 <= pos[0] < sx and 0 <= pos[1] < sy and 0 <= pos[2] < sz
+            if not in_bounds:
+                if skip_out_of_bounds:
+                    continue
+                raise ValueError(f"point {pos} is outside grid {self.grid.shape}")
+            points[pos] = None
+        if not points:
+            return 0
+        idx = self.grid.palette.add(self._resolve(block))
+        if self.is_chunked:
+            coords_list: list[tuple[int, int, int]] = []
+            old_values: list[int] = []
+            new_values: list[int] = []
+            for pos in points:
+                old = _raw_index_at(self.grid, *pos)
+                if old == idx:
+                    continue
+                _set_raw_index_at(self._chunked, *pos, idx)
+                coords_list.append(pos)
+                old_values.append(old)
+                new_values.append(idx)
+            if history and coords_list:
+                coords_delta = tuple(
+                    np.array([p[i] for p in coords_list], dtype=np.int64) for i in range(3)
+                )
+                self._record_chunk_delta(coords_delta, np.array(old_values, dtype=np.uint16),
+                                         np.array(new_values, dtype=np.uint16))
+            elif coords_list:
+                self.history.clear()
+            return len(coords_list)
+        g = self._dense
+        xs = np.array([p[0] for p in points], dtype=np.int64)
+        ys = np.array([p[1] for p in points], dtype=np.int64)
+        zs = np.array([p[2] for p in points], dtype=np.int64)
+        old = g.data[xs, ys, zs].copy()
+        changed = old != idx
+        if not bool(np.any(changed)):
+            return 0
+        g.data[xs[changed], ys[changed], zs[changed]] = idx
+        count = int(np.count_nonzero(changed))
+        if history:
+            coords_delta = (xs[changed], ys[changed], zs[changed])
+            self.history.push(Delta(
+                coords=coords_delta,
+                old_values=old[changed],
+                new_values=np.full(count, idx, dtype=np.uint16),
+            ))
+        else:
+            self.history.clear()
+        return count
+
+    def _set_box_chunked(self, x0: int, y0: int, z0: int,
+                         x1: int, y1: int, z1: int, idx: int, *,
+                         history: bool) -> int:
+        grid = self._chunked
+        cs = grid.chunk_size
+        delta_coords: list[np.ndarray] = []
+        delta_old: list[np.ndarray] = []
+        delta_new: list[np.ndarray] = []
+        changed_total = 0
+        for cx in range(x0 // cs, x1 // cs + 1):
+            for cy in range(y0 // cs, y1 // cs + 1):
+                for cz in range(z0 // cs, z1 // cs + 1):
+                    arr = grid._chunks.get((cx, cy, cz)) if idx == 0 else grid._ensure_chunk(cx, cy, cz)
+                    if arr is None:
+                        continue
+                    ox, oy, oz = grid._chunk_origin(cx, cy, cz)
+                    lx0 = max(x0 - ox, 0)
+                    ly0 = max(y0 - oy, 0)
+                    lz0 = max(z0 - oz, 0)
+                    lx1 = min(x1 - ox, arr.shape[0] - 1)
+                    ly1 = min(y1 - oy, arr.shape[1] - 1)
+                    lz1 = min(z1 - oz, arr.shape[2] - 1)
+                    region = arr[lx0:lx1 + 1, ly0:ly1 + 1, lz0:lz1 + 1]
+                    changed = region != idx
+                    changed_count = int(np.count_nonzero(changed))
+                    if changed_count == 0:
+                        continue
+                    if history:
+                        local_x, local_y, local_z = np.nonzero(changed)
+                        wx = local_x + lx0 + ox
+                        wy = local_y + ly0 + oy
+                        wz = local_z + lz0 + oz
+                        delta_coords.append(np.stack([wx, wy, wz], axis=0))
+                        delta_old.append(region[changed].copy())
+                        delta_new.append(np.full(changed_count, idx, dtype=np.uint16))
+                    region[...] = idx
+                    changed_total += changed_count
+                    if idx == 0:
+                        grid._drop_chunk_if_empty(cx, cy, cz)
+        if history and delta_coords:
+            coords: tuple[np.ndarray, np.ndarray, np.ndarray] = (
+                np.concatenate([dc[0] for dc in delta_coords]),
+                np.concatenate([dc[1] for dc in delta_coords]),
+                np.concatenate([dc[2] for dc in delta_coords]),
+            )
+            self._record_chunk_delta(coords, np.concatenate(delta_old), np.concatenate(delta_new))
+        elif changed_total:
+            self.history.clear()
+        return changed_total
 
     def _apply_chunked(self, shape: Shape, idx: int, *,
                         paint_only: bool, erase: bool = False) -> None:
@@ -478,6 +624,21 @@ def _normalized_box(frm: tuple[int, int, int], to: tuple[int, int, int],
     if any(lo[i] < 0 or hi[i] >= shape[i] for i in range(3)):
         raise ValueError(f"clone region {frm}->{to} is outside grid {shape}")
     return lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]
+
+
+def _clipped_box(frm: tuple[int, int, int], to: tuple[int, int, int],
+                 shape: tuple[int, int, int], *, clip: bool) -> tuple[int, int, int, int, int, int] | None:
+    lo = tuple(min(int(frm[i]), int(to[i])) for i in range(3))
+    hi = tuple(max(int(frm[i]), int(to[i])) for i in range(3))
+    if not clip:
+        if any(lo[i] < 0 or hi[i] >= shape[i] for i in range(3)):
+            raise ValueError(f"box {frm}->{to} is outside grid {shape}")
+        return lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]
+    clipped_lo = tuple(max(lo[i], 0) for i in range(3))
+    clipped_hi = tuple(min(hi[i], shape[i] - 1) for i in range(3))
+    if any(clipped_hi[i] < clipped_lo[i] for i in range(3)):
+        return None
+    return clipped_lo[0], clipped_lo[1], clipped_lo[2], clipped_hi[0], clipped_hi[1], clipped_hi[2]
 
 
 def _raw_index_at(grid: VoxelGrid | ChunkedGrid, x: int, y: int, z: int) -> int:

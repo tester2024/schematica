@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
+from schematica.blocks.block import Block
 from schematica.core.chunked import ChunkedGrid
-from schematica.core.voxel import VoxelGrid
 from schematica.export.sponge import write_sponge
 from schematica.session.session import Session
 from schematica.shapes.primitives import Box, Sphere
@@ -68,8 +67,6 @@ def test_session_chunked_replace():
     s.add(Box(0, 0, 0, 15, 15, 15), "minecraft:stone")
     n = s.replace("minecraft:stone", "minecraft:dirt")
     assert n == 16 ** 3
-    assert s.grid.count(Block_parse("minecraft:dirt")) if False else True
-    from schematica.blocks.block import Block
     assert s.grid.count(Block.parse("minecraft:dirt")) == 16 ** 3
 
 
@@ -146,6 +143,14 @@ def test_export_chunked_big_map_no_oom(tmp_path):
     assert s.grid.chunk_count() <= 12
 
 
-def Block_parse(name):
-    from schematica.blocks.block import Block
-    return Block.parse(name)
+def test_chunked_set_box_and_set_many_undo_redo():
+    s = Session.new((32, 32, 32), chunked=True, chunk_size=16)
+    assert s.set_box((14, 14, 14), (17, 17, 17), "minecraft:stone") == 64
+    assert s.grid.chunk_count() == 8
+    assert s.undo()
+    assert s.grid.nonempty_count() == 0
+    assert s.redo()
+    assert s.grid.nonempty_count() == 64
+    assert s.set_many([(0, 0, 0), (31, 31, 31)], "minecraft:dirt") == 2
+    assert s.grid.get(0, 0, 0).name == "minecraft:dirt"
+    assert s.grid.get(31, 31, 31).name == "minecraft:dirt"
