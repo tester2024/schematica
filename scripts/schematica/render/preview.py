@@ -150,7 +150,7 @@ def _preview_projected_dense(grid: VoxelGrid, out_dir: Path,
         ax.imshow(np.rot90(img), origin="upper")
         ax.set_title(f"{v} projected (ds={ds})")
         ax.axis("off")
-        out = out_dir / f"preview_{v}.png"
+        out = out_dir / _projected_preview_name(v)
         fig.savefig(out, bbox_inches="tight")
         plt.close(fig)
         paths.append(out)
@@ -230,11 +230,17 @@ def preview_chunked(grid: ChunkedGrid, out_dir: str | Path,
         ax.imshow(np.rot90(img), origin="upper")
         ax.set_title(f"{title} (ds={ds})")
         ax.axis("off")
-        out = out_dir / f"preview_{v}.png"
+        out = out_dir / _projected_preview_name(v)
         fig.savefig(out, bbox_inches="tight")
         plt.close(fig)
         paths.append(out)
     return paths
+
+
+def _projected_preview_name(view: str) -> str:
+    if view == "iso":
+        return "preview_iso_projected.png"
+    return f"preview_{view}.png"
 
 
 def _project_chunked(grid: ChunkedGrid, plane: str, depth_axis: str,

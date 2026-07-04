@@ -27,3 +27,11 @@ def test_preview_projects_large_dense_grid(tmp_path):
     assert [p.name for p in paths] == ["preview_top.png"]
     assert paths[0].exists()
     assert paths[0].stat().st_size > 100
+
+
+def test_preview_names_projected_iso_explicitly(tmp_path):
+    s = Session.new((8, 8, 8))
+    s.add(Box(0, 0, 0, 7, 7, 7), "minecraft:stone")
+    with pytest.warns(RuntimeWarning, match="projected previews"):
+        paths = preview(s.grid, tmp_path, views=("iso",), max_voxels=1, max_dim=4)
+    assert [p.name for p in paths] == ["preview_iso_projected.png"]

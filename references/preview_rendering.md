@@ -6,7 +6,7 @@
 Renders the VoxelGrid to PNG files in `out_dir`. Creates the directory if it
 does not exist. Returns the list of written paths.
 
-Files are named `preview_<view>.png`. Views:
+Small dense-grid files are named `preview_<view>.png`. Views:
 - `top`   — looking down the Y axis (`view_init(elev=90, azim=-90)`).
 - `front` — looking along Z (`elev=0, azim=-90`).
 - `right` — along X (`elev=0, azim=0`).
@@ -27,7 +27,9 @@ the `Agg` backend (headless). The renderer:
 Large dense grids above `max_voxels` emit a `RuntimeWarning` and switch to
 downsampled 2D projected previews. `ChunkedGrid` previews always use projected
 rendering and do not materialise a full dense array. `max_dim` caps the longest
-rendered image axis.
+rendered image axis. Projected fallback `iso` output is named
+`preview_iso_projected.png` because it is a bounded top projection, not a true
+3D isometric voxel render.
 
 ## Color map
 
