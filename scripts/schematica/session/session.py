@@ -597,7 +597,135 @@ class Session:
             st["chunks"] = self.grid.chunk_count()
             st["chunk_size"] = self.grid.chunk_size
             st["memory_bytes"] = self.grid.memory_estimate_bytes()
+        st["markers"] = len(self.metadata.get("markers", []))
+        st["regions"] = len(self.metadata.get("regions", []))
         return st
+
+    # ---- markers / regions ----------------------------------------------
+
+    def marker(self, name: str, x: int, y: int, z: int, *,
+               kind: str = "point") -> Session:
+        """Add a generic named marker at ``(x, y, z)``.
+
+        ``kind`` is a free-form label (e.g. ``"spawn"``, ``"entrance"``,
+        ``"viewpoint"``, ``"loot_room"``) so markers work for any build type,
+        not just minigames.
+        """
+        markers = self.metadata.setdefault("markers", [])
+        markers.append({"name": name, "pos": [int(x), int(y), int(z)], "kind": kind})
+        return self
+
+    def region(self, name: str, corner: tuple[int, int, int],
+               size: tuple[int, int, int], *, kind: str = "area") -> Session:
+        """Add a generic named region (bounding box annotation).
+
+        ``corner`` is the min corner and ``size`` is the (w, h, d) extent.
+        ``kind`` is a free-form label (e.g. ``"area"``, ``"arena"``,
+        ``"spawn_pad"``, ``"no_build"``).
+        """
+        cx, cy, cz = corner
+        sw, sh, sd = size
+        if sw <= 0 or sh <= 0 or sd <= 0:
+            raise ValueError(f"region size must be positive, got {size}")
+        sx, sy, sz = self.grid.shape
+        if cx < 0 or cy < 0 or cz < 0 or cx + sw > sx or cy + sh > sy or cz + sd > sz:
+            raise ValueError(f"region {corner}+{size} is outside grid {self.grid.shape}")
+        regions = self.metadata.setdefault("regions", [])
+        regions.append({
+            "name": name,
+            "corner": [int(cx), int(cy), int(cz)],
+            "size": [int(sw), int(sh), int(sd)],
+            "kind": kind,
+        })
+        return self
+
+    def markers(self) -> list[dict[str, Any]]:
+        """Return all stored markers (shallow copy)."""
+        return list(self.metadata.get("markers", []))
+
+    def regions(self) -> list[dict[str, Any]]:
+        """Return all stored regions (shallow copy)."""
+        return list(self.metadata.get("regions", []))
+
+    def export_markers(self, path: str | Path) -> Path:
+        """Write markers + regions + build summary to a JSON file beside the schematic.
+
+        The file is suitable for plugins, datapacks, or manual setup and includes
+        the grid shape, version, marker list, and region list.
+        """
+        p = Path(path)
+        p.write_text(json.dumps({
+            "version": self.version,
+            "shape": list(self.grid.shape),
+            "markers": self.markers(),
+            "regions": self.regions(),
+        }, indent=2), encoding="utf-8")
+        return p
+
+    # ---- procedural detail tools ---------------------------------------
+
+    def paint_gradient(self, frm: tuple[int, int, int], to: tuple[int, int, int],
+                       blocks: list[str], *, axis: str = "y",
+                       blend: float = 0.0, seed: int = 0) -> int:
+        """Paint a linear gradient of blocks along an axis. Returns voxels painted."""
+        from ..procedural.detail import paint_gradient as _pg
+        old = self._dense.data.copy() if not self.is_chunked else None
+        n = _pg(self.grid, frm, to, blocks, axis=axis, blend=blend, seed=seed)
+        if not self.is_chunked and n > 0:
+            self._record(self.grid.data.copy())
+        return n
+
+    def edge_wear(self, blocks: list[str], *, min_exposure: int = 1,
+                  max_exposure: int = 6, noise: float = 0.0,
+                  seed: int = 0) -> int:
+        """Apply weathering blocks to exposed surfaces. Returns voxels weathered."""
+        from ..procedural.detail import edge_wear as _ew
+        n = _ew(self.grid, blocks, min_exposure=min_exposure,
+                max_exposure=max_exposure, noise=noise, seed=seed)
+        if not self.is_chunked and n > 0:
+            self._record(self.grid.data.copy())
+        return n
+
+    def surface_scatter(self, block: str, *, density: float = 0.1,
+                        min_exposure: int = 1, max_exposure: int = 6,
+                        seed: int = 0, on_blocks: list[str] | None = None) -> int:
+        """Scatter a block on exposed surfaces. Returns voxels scattered."""
+        from ..procedural.detail import surface_scatter as _ss
+        n = _ss(self.grid, block, density=density, min_exposure=min_exposure,
+                max_exposure=max_exposure, seed=seed, on_blocks=on_blocks)
+        if not self.is_chunked and n > 0:
+            self._record(self.grid.data.copy())
+        return n
+
+    # ---- spatial analysis -----------------------------------------------
+
+    def walkable_at(self, x: int, y: int, z: int) -> bool:
+        """Check if a player can stand at (x, y, z)."""
+        from ..analysis.spatial import walkable_at as _wa
+        return _wa(self.grid, x, y, z)
+
+    def clearance_at(self, x: int, y: int, z: int, *, height: int = 2) -> int:
+        """Return vertical clearance (free blocks above) at (x, y, z)."""
+        from ..analysis.spatial import clearance_at as _ca
+        return _ca(self.grid, x, y, z, height=height)
+
+    def is_connected(self, a: tuple[int, int, int],
+                     b: tuple[int, int, int]) -> bool:
+        """Check if a player can walk from position a to position b."""
+        from ..analysis.spatial import is_connected as _ic
+        return _ic(self.grid, a, b)
+
+    def reachable_area(self, start: tuple[int, int, int]) -> int:
+        """Return the number of walkable voxels reachable from start."""
+        from ..analysis.spatial import reachable_area as _ra
+        mask = _ra(self.grid, start)
+        return int(np.count_nonzero(mask))
+
+    def shortest_path(self, a: tuple[int, int, int],
+                      b: tuple[int, int, int]) -> list[tuple[int, int, int]] | None:
+        """BFS shortest walking path from a to b. Returns list or None."""
+        from ..analysis.spatial import shortest_path as _sp
+        return _sp(self.grid, a, b)
 
 
 def _eval_shape_subgrid(shape: Shape, grid_shape: tuple[int, int, int],

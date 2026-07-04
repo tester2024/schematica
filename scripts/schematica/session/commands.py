@@ -394,6 +394,177 @@ def cmd_export(s: Session, path: str) -> str:
     return f"exported {p}"
 
 
+def cmd_marker(s: Session, name: str, x: int, y: int, z: int,
+               kind: str = "point") -> str:
+    s.marker(name, x, y, z, kind=kind)
+    return f"marker {name} at ({x},{y},{z}) kind={kind}"
+
+
+def cmd_region(s: Session, name: str, corner_x: int, corner_y: int, corner_z: int,
+               sx: int, sy: int, sz: int, kind: str = "area") -> str:
+    s.region(name, (corner_x, corner_y, corner_z), (sx, sy, sz), kind=kind)
+    return f"region {name} at ({corner_x},{corner_y},{corner_z}) size={sx}x{sy}x{sz} kind={kind}"
+
+
+def cmd_export_markers(s: Session, path: str) -> str:
+    p = s.export_markers(path)
+    return f"markers exported {p}"
+
+
+def cmd_preview_region(s: Session, corner_x: int, corner_y: int, corner_z: int,
+                       sx: int, sy: int, sz: int, out_dir: str = "previews") -> str:
+    from ..render.preview import preview_region
+    paths = preview_region(s.grid, (corner_x, corner_y, corner_z),
+                           (sx, sy, sz), out_dir)
+    return "previews: " + ", ".join(p.name for p in paths)
+
+
+def cmd_report(s: Session) -> str:
+    from ..export.report import palette_report, format_report
+    rep = palette_report(s.grid)
+    return format_report(rep) + " | unknown=" + str(rep["unknown_blocks"]) + " mcedit=" + str(rep["mcedit_unmapped"])
+
+
+def cmd_paint_gradient(s: Session, frm: str, to: str, blocks: str,
+                       axis: str = "y", blend: float = 0.0,
+                       seed: int = 0) -> str:
+    x0, y0, z0 = _coord_tuple(frm)
+    x1, y1, z1 = _coord_tuple(to)
+    block_list = [b.strip() for b in blocks.split(",") if b.strip()]
+    n = s.paint_gradient((x0, y0, z0), (x1, y1, z1), block_list,
+                         axis=axis, blend=blend, seed=seed)
+    return f"gradient painted {n} voxels axis={axis} blocks={len(block_list)}"
+
+
+def cmd_edge_wear(s: Session, blocks: str, min_exposure: int = 1,
+                  max_exposure: int = 6, noise: float = 0.0,
+                  seed: int = 0) -> str:
+    block_list = [b.strip() for b in blocks.split(",") if b.strip()]
+    n = s.edge_wear(block_list, min_exposure=min_exposure,
+                    max_exposure=max_exposure, noise=noise, seed=seed)
+    return f"edge-worn {n} voxels"
+
+
+def cmd_surface_scatter(s: Session, block: str, density: float = 0.1,
+                        min_exposure: int = 1, max_exposure: int = 6,
+                        seed: int = 0, on_blocks: str = "") -> str:
+    on_list = [b.strip() for b in on_blocks.split(",") if b.strip()] if on_blocks else None
+    n = s.surface_scatter(block, density=density, min_exposure=min_exposure,
+                          max_exposure=max_exposure, seed=seed, on_blocks=on_list)
+    return f"scattered {n} voxels of {block}"
+
+
+def cmd_walkable(s: Session, x: int, y: int, z: int) -> str:
+    ok = s.walkable_at(x, y, z)
+    clr = s.clearance_at(x, y, z)
+    return f"walkable={ok} clearance={clr} at ({x},{y},{z})"
+
+
+def cmd_connected(s: Session, a: str, b: str) -> str:
+    ax, ay, az = _coord_tuple(a)
+    bx, by, bz = _coord_tuple(b)
+    ok = s.is_connected((ax, ay, az), (bx, by, bz))
+    return f"connected={ok} {a}->{b}"
+
+
+def cmd_reachable(s: Session, x: int, y: int, z: int) -> str:
+    n = s.reachable_area((x, y, z))
+    return f"reachable area from ({x},{y},{z}): {n} voxels"
+
+
+def cmd_path(s: Session, a: str, b: str) -> str:
+    ax, ay, az = _coord_tuple(a)
+    bx, by, bz = _coord_tuple(b)
+    path = s.shortest_path((ax, ay, az), (bx, by, bz))
+    if path is None:
+        return f"no path {a}->{b}"
+    return f"path {a}->{b}: {len(path)} steps"
+
+
+def cmd_validate(s: Session, path: str, fmt: str = "sponge") -> str:
+    from ..export.validation import validate_export
+    r = validate_export(s.grid, path, fmt=fmt)
+    return str(r)
+
+
+def cmd_validate_all(s: Session, dir_path: str) -> str:
+    from ..export.validation import validate_all
+    results = validate_all(s.grid, dir_path)
+    lines = []
+    for r in results:
+        lines.append(str(r))
+    return "\n".join(lines)
+
+
+def cmd_substitutions(s: Session) -> str:
+    from ..export.materials import suggest_substitutions
+    subs = suggest_substitutions(s.grid)
+    if not subs:
+        return "no substitutions needed (all blocks have legacy mappings)"
+    lines = [f"  {k} -> {v}" for k, v in sorted(subs.items())]
+    return f"{len(subs)} substitutions needed:\n" + "\n".join(lines)
+
+
+def cmd_apply_substitutions(s: Session) -> str:
+    from ..export.materials import apply_substitutions
+    n = apply_substitutions(s.grid)
+    if not s.is_chunked:
+        s._record(s.grid.data.copy())
+    return f"applied {n} voxel substitutions for legacy compatibility"
+
+
+def cmd_constraint_add(s: Session, kind: str, a: str = "", b: str = "",
+                       c: str = "", d: str = "", e: str = "") -> str:
+    from ..constraints import (
+        HeightLimit, BlockBan, BlockAllowlist, Symmetry, BoxBounds,
+        MaxBlockCount, PaletteLimit, SolidRatio, ConstraintSet,
+    )
+    cs = s.metadata.setdefault("constraints", ConstraintSet())
+    if kind == "height":
+        max_y = int(a) if a else 31
+        constr = HeightLimit(max_y=max_y)
+    elif kind == "ban":
+        banned = set(str(b.strip()) for b in a.split(",") if b.strip())
+        constr = BlockBan(banned=banned)
+    elif kind == "allowlist":
+        allowed = set(str(b.strip()) for b in a.split(",") if b.strip())
+        constr = BlockAllowlist(allowed=allowed)
+    elif kind == "symmetry":
+        ax = {"x": 0, "y": 1, "z": 2}.get(a or "x", 0)
+        constr = Symmetry(axis=ax)
+    elif kind == "bounds":
+        lo = _coord_tuple(a or "0,0,0")
+        hi = _coord_tuple(b or "0,0,0")
+        constr = BoxBounds(min_corner=lo, max_corner=hi)
+    elif kind == "max_count":
+        constr = MaxBlockCount(block_name=a, max_count=int(b) if b else 100)
+    elif kind == "palette":
+        constr = PaletteLimit(max_size=int(a) if a else 256)
+    elif kind == "solid_ratio":
+        mn = float(a) if a else 0.0
+        mx = float(b) if b else 1.0
+        constr = SolidRatio(min_frac=mn, max_frac=mx)
+    else:
+        return f"unknown constraint kind: {kind}"
+    cs.add(constr)
+    return f"added constraint {constr.name}"
+
+
+def cmd_constraint_check(s: Session) -> str:
+    from ..constraints import ConstraintSet
+    cs: ConstraintSet = s.metadata.get("constraints")
+    if cs is None or not cs.constraints:
+        return "no constraints registered"
+    violations = cs.check_all(s.grid)
+    if not violations:
+        return f"all {len(cs.constraints)} constraints OK"
+    lines = []
+    for name, msgs in violations.items():
+        for msg in msgs:
+            lines.append(f"  [{name}] {msg}")
+    return f"{len(violations)} constraints violated:\n" + "\n".join(lines)
+
+
 def cmd_export_mcedit(s: Session, path: str) -> str:
     from ..export.mcedit import write_mcedit
     p = write_mcedit(s.grid, path)
@@ -662,6 +833,25 @@ COMMANDS: dict[str, CommandSpec] = {
     "redo": CommandSpec("redo", (), cmd_redo, "redo"),
     "clear": CommandSpec("clear", (), cmd_clear, "clear grid"),
     "stats": CommandSpec("stats", (), cmd_stats, "show stats"),
+    "report": CommandSpec("report", (), cmd_report,
+                          "show palette compatibility report for all export formats"),
+    "marker": CommandSpec("marker", (
+        ArgSpec("name", "str"), ArgSpec("x", "int"), ArgSpec("y", "int"), ArgSpec("z", "int"),
+        ArgSpec("kind", "str", default="point", required=False),
+    ), cmd_marker, "add a named marker marker=name x=N y=N z=N kind=point"),
+    "region": CommandSpec("region", (
+        ArgSpec("name", "str"),
+        ArgSpec("corner_x", "int"), ArgSpec("corner_y", "int"), ArgSpec("corner_z", "int"),
+        ArgSpec("sx", "int"), ArgSpec("sy", "int"), ArgSpec("sz", "int"),
+        ArgSpec("kind", "str", default="area", required=False),
+    ), cmd_region, "add a named region name=X corner_x=A corner_y=B corner_z=C sx=N sy=N sz=N kind=area"),
+    "export.markers": CommandSpec("export.markers", (ArgSpec("path", "str"),),
+                                   cmd_export_markers, "export markers+regions JSON"),
+    "preview.region": CommandSpec("preview.region", (
+        ArgSpec("corner_x", "int"), ArgSpec("corner_y", "int"), ArgSpec("corner_z", "int"),
+        ArgSpec("sx", "int"), ArgSpec("sy", "int"), ArgSpec("sz", "int"),
+        ArgSpec("out_dir", "str", default="previews", required=False),
+    ), cmd_preview_region, "render a cropped sub-region preview.region corner_x=A corner_y=B corner_z=C sx=N sy=N sz=N"),
     "preview": CommandSpec("preview", (
         ArgSpec("out_dir", "str", default="previews", required=False),
     ), cmd_preview, "render preview PNGs"),
@@ -707,4 +897,61 @@ COMMANDS: dict[str, CommandSpec] = {
         ArgSpec("tileset", "str", default="mossy_ruins", required=False),
         ArgSpec("seed", "int", default=0, required=False),
     ), cmd_generate_wfc, "wave function collapse fill frm=A to=B tileset=name"),
+    # ---- procedural detail ----
+    "paint.gradient": CommandSpec("paint.gradient", (
+        ArgSpec("frm", "coords"), ArgSpec("to", "coords"),
+        ArgSpec("blocks", "str"),
+        ArgSpec("axis", "str", default="y", required=False),
+        ArgSpec("blend", "float", default=0.0, required=False),
+        ArgSpec("seed", "int", default=0, required=False),
+    ), cmd_paint_gradient, "paint gradient frm=A to=B blocks=stone,cobblestone,stone_bricks axis=y"),
+    "edge.wear": CommandSpec("edge.wear", (
+        ArgSpec("blocks", "str"),
+        ArgSpec("min_exposure", "int", default=1, required=False),
+        ArgSpec("max_exposure", "int", default=6, required=False),
+        ArgSpec("noise", "float", default=0.0, required=False),
+        ArgSpec("seed", "int", default=0, required=False),
+    ), cmd_edge_wear, "apply weathering to exposed edges blocks=mossy_cobblestone,cobblestone,stone"),
+    "surface.scatter": CommandSpec("surface.scatter", (
+        ArgSpec("block", "block"),
+        ArgSpec("density", "float", default=0.1, required=False),
+        ArgSpec("min_exposure", "int", default=1, required=False),
+        ArgSpec("max_exposure", "int", default=6, required=False),
+        ArgSpec("seed", "int", default=0, required=False),
+        ArgSpec("on_blocks", "str", default="", required=False),
+    ), cmd_surface_scatter, "scatter block on exposed surfaces block=moss density=0.1"),
+    # ---- spatial analysis ----
+    "walkable": CommandSpec("walkable", (
+        ArgSpec("x", "int"), ArgSpec("y", "int"), ArgSpec("z", "int"),
+    ), cmd_walkable, "check if position is walkable x=N y=N z=N"),
+    "connected": CommandSpec("connected", (
+        ArgSpec("a", "coords"), ArgSpec("b", "coords"),
+    ), cmd_connected, "check walkability between two points a=X b=Y"),
+    "reachable": CommandSpec("reachable", (
+        ArgSpec("x", "int"), ArgSpec("y", "int"), ArgSpec("z", "int"),
+    ), cmd_reachable, "flood-fill reachable walkable area from (x,y,z)"),
+    "path": CommandSpec("path", (
+        ArgSpec("a", "coords"), ArgSpec("b", "coords"),
+    ), cmd_path, "shortest walking path a=X b=Y"),
+    # ---- export validation ----
+    "validate": CommandSpec("validate", (
+        ArgSpec("path", "str"), ArgSpec("fmt", "str", default="sponge", required=False),
+    ), cmd_validate, "validate export round-trip path=out.schem fmt=sponge|litematic|mcedit"),
+    "validate.all": CommandSpec("validate.all", (
+        ArgSpec("dir_path", "str"),
+    ), cmd_validate_all, "validate all three formats into a directory"),
+    # ---- material intelligence ----
+    "substitutions": CommandSpec("substitutions", (), cmd_substitutions,
+                                  "show suggested legacy substitutions for unmapped blocks"),
+    "apply.substitutions": CommandSpec("apply.substitutions", (),
+                                       cmd_apply_substitutions,
+                                       "replace unmapped blocks with legacy-compatible substitutes"),
+    # ---- constraints ----
+    "constraint.add": CommandSpec("constraint.add", (
+        ArgSpec("kind", "str"),
+        ArgSpec("a", "str", default="", required=False),
+        ArgSpec("b", "str", default="", required=False),
+    ), cmd_constraint_add, "add a constraint kind=height|ban|allowlist|symmetry|bounds|max_count|palette|solid_ratio a=... b=..."),
+    "constraint.check": CommandSpec("constraint.check", (), cmd_constraint_check,
+                                    "check all constraints against the current grid"),
 }

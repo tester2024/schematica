@@ -71,8 +71,13 @@ In the REPL, type `help` to list commands, `exit` to quit.
 | `clone.cardinal` | `frm`, `to`, `center`, `include_air`=`false` | | copy a box to other 3 Y-axis cardinal rotations |
 | `undo` | | | |
 | `redo` | | | |
-| `stats` | | | shape/volume/solid/palette |
+| `stats` | | | shape/volume/solid/palette + marker/region counts |
+| `report` | | | palette compatibility report across export formats |
+| `marker` | `name`, `x`, `y`, `z`, `kind`=`point` | | add a named marker (any kind label) |
+| `region` | `name`, `corner_x`, `corner_y`, `corner_z`, `sx`, `sy`, `sz`, `kind`=`area` | | add a named bounding-box annotation |
+| `export.markers` | `path` | | write markers+regions JSON |
 | `preview` | `out_dir`=`previews` | | top/front/right/iso PNGs |
+| `preview.region` | `corner_x`, `corner_y`, `corner_z`, `sx`, `sy`, `sz`, `out_dir`=`previews` | | cropped sub-region render |
 | `export` | `path` | | Sponge .schem |
 | `export.mcedit` | `path` | | legacy MCEdit .schematic |
 | `export.litematic` | `path` | | Litematica .litematic |
@@ -81,6 +86,19 @@ In the REPL, type `help` to list commands, `exit` to quit.
 | `generate.terrain` | `seed`, `amplitude`, `scale`, `top`, `filler` | | Perlin terrain |
 | `generate.tree` | `at`, `height`, `trunk`, `leaves` | | tree template |
 | `generate.wfc` | `frm`, `to`, `tileset`, `seed` | | WFC fill |
+| `constraint.add` | `kind`, `a`=``, `b`=`` | | add constraint kind=height a=10 / kind=ban a=minecraft:bedrock / kind=symmetry a=x / kind=bounds a=0,0,0 b=7,7,7 / kind=palette a=256 / kind=solid_ratio a=0.1 b=0.9 / kind=max_count a=minecraft:stone b=1000 |
+| `constraint.check` | | | check all constraints against current grid |
+| `validate` | `path`, `fmt`=`sponge` | | validate export round-trip |
+| `validate.all` | `dir_path` | | validate all 3 formats |
+| `substitutions` | | | show suggested legacy substitutions for unmapped blocks |
+| `apply.substitutions` | | | replace unmapped blocks with legacy-compatible substitutes |
+| `paint.gradient` | `frm`, `to`, `blocks`, `axis`=`y`, `blend`=`0.0`, `seed`=`0` | | paint linear gradient along axis |
+| `edge.wear` | `blocks`, `min_exposure`=`1`, `max_exposure`=`6`, `noise`=`0.0`, `seed`=`0` | | weather exposed surfaces |
+| `surface.scatter` | `block`, `density`=`0.1`, `min_exposure`=`1`, `max_exposure`=`6`, `seed`=`0`, `on_blocks`=`` | | scatter block on exposed surfaces |
+| `walkable` | `x`, `y`, `z` | | check if position is walkable |
+| `connected` | `a`, `b` | | check walkability between two points |
+| `reachable` | `x`, `y`, `z` | | flood-fill reachable walkable area |
+| `path` | `a`, `b` | | shortest walking path |
 | `help` | | | list commands (REPL only) |
 | `exit` | | | quit (REPL only) |
 

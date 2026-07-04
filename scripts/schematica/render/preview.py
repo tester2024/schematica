@@ -237,6 +237,29 @@ def preview_chunked(grid: ChunkedGrid, out_dir: str | Path,
     return paths
 
 
+def preview_region(grid: VoxelGrid | ChunkedGrid, corner: tuple[int, int, int],
+                    size: tuple[int, int, int], out_dir: str | Path,
+                    views: tuple[str, ...] = ("top", "front", "right", "iso"), *,
+                    max_voxels: int = _DENSE_VOXEL_RENDER_LIMIT,
+                    max_dim: int = _PROJECTED_MAX_DIM) -> list[Path]:
+    """Render a cropped sub-region of the grid.
+
+    This extracts ``grid[corner .. corner+size]`` as a small dense grid and
+    runs the standard ``preview()`` pipeline on it. Useful for reviewing a
+    single team base, spawn platform, or focal structure on large maps without
+    waiting for a full-map render.
+    """
+    x0, y0, z0 = corner
+    sx, sy, sz = size
+    if sx <= 0 or sy <= 0 or sz <= 0:
+        raise ValueError(f"region size must be positive, got {size}")
+    gx, gy, gz = grid.shape
+    if x0 < 0 or y0 < 0 or z0 < 0 or x0 + sx > gx or y0 + sy > gy or z0 + sz > gz:
+        raise ValueError(f"region {corner}+{size} is outside grid {grid.shape}")
+    sub = grid.subregion(corner, size)
+    return preview(sub, out_dir, views, max_voxels=max_voxels, max_dim=max_dim)
+
+
 def _projected_preview_name(view: str) -> str:
     if view == "iso":
         return "preview_iso_projected.png"

@@ -243,7 +243,85 @@ Methods (all return `self` for chaining unless noted):
 - `transform_rotate(times, axes)`, `transform_mirror(axis)`.
 - `undo() -> bool`, `redo() -> bool`.
 - `snapshot() -> dict`, `save(path)`, `load(path)` classmethod.
-- `stats() -> dict`.
+- `stats() -> dict` (includes `markers` and `regions` counts).
+- `marker(name, x, y, z, kind="point") -> self` — add a named marker.
+- `region(name, corner, size, kind="area") -> self` — add a named bounding-box annotation.
+- `markers() -> list[dict]`, `regions() -> list[dict]`.
+- `export_markers(path) -> Path` — write markers+regions+shape JSON.
+- `paint_gradient(frm, to, blocks, axis, blend, seed) -> int` — gradient paint.
+- `edge_wear(blocks, min_exposure, max_exposure, noise, seed) -> int` — weathering.
+- `surface_scatter(block, density, ...) -> int` — surface scatter.
+- `walkable_at(x, y, z) -> bool`, `clearance_at(x, y, z, height) -> int`.
+- `is_connected(a, b) -> bool`, `reachable_area(start) -> int`.
+- `shortest_path(a, b) -> list | None`.
+
+## `schematica.export.report`
+Pre-export compatibility reports.
+
+- `palette_report(grid, registry=None) -> dict` — returns `palette_size`,
+  `block_count`, `unknown_blocks` (not in registry), `mcedit_unmapped` (would
+  become air in MCEdit), and `sponge_ok`.
+- `format_report(report) -> str` — one-line human-readable summary.
+
+## `schematica.procedural.detail`
+Procedural micro-detail tools for organic weathering and variation. All operate
+on existing solid voxels only (never fill empty space).
+
+- `paint_gradient(grid, frm, to, blocks, axis="y", blend=0.0, seed=0) -> int` —
+  paint a linear gradient of blocks along an axis. Returns voxels painted.
+- `edge_wear(grid, blocks, min_exposure=1, max_exposure=6, noise=0.0, seed=0) -> int` —
+  apply weathering blocks to voxels with exposed air faces. More exposed = more
+  weathered (earlier block in list). Returns voxels weathered.
+- `surface_scatter(grid, block, density=0.1, min_exposure=1, max_exposure=6, seed=0, on_blocks=None) -> int` —
+  probabilistically scatter a block on exposed surfaces. `on_blocks` restricts
+  to specific source blocks. Returns voxels scattered.
+
+## `schematica.analysis.spatial`
+Spatial planning and walkability analysis. Read-only on the grid.
+
+- `walkable_at(grid, x, y, z) -> bool` — can a player stand here? (passable +
+  headroom + solid floor below).
+- `clearance_at(grid, x, y, z, height=2) -> int` — vertical free blocks above.
+- `walkable_map(grid, floor_y=None) -> np.ndarray` — 2D (x,z) boolean map of
+  walkable positions.
+- `reachable_area(grid, start, max_steps=0) -> np.ndarray` — 3D boolean
+  flood-fill of walkable positions reachable by walking from `start`.
+- `is_connected(grid, a, b) -> bool` — can a player walk from a to b?
+- `shortest_path(grid, a, b) -> list | None` — BFS shortest walking path.
+
+## `schematica.export.validation`
+Cross-format round-trip validation.
+
+- `validate_export(grid, path, fmt="sponge", data_version=3465) -> ValidationResult` —
+  write a file and read it back, checking palette + voxel integrity.
+- `validate_all(grid, dir_path, data_version=3465) -> list[ValidationResult]` —
+  validate all three formats (sponge, litematic, mcedit).
+- `ValidationResult` — dataclass with `ok`, `format`, `path`, `issues`,
+  `missing_blocks`, `extra_blocks`, `voxel_mismatches`, `total_voxels`.
+
+## `schematica.constraints`
+Declarative build constraint system.
+
+- `ConstraintSet(constraints)` — collection with `add(c)`, `check_all(grid) ->
+  dict`, `check_or_raise(grid)`, `attach(session)`, `detach()`.
+- `HeightLimit(max_y)` — no solid above Y.
+- `BlockBan(banned)` — forbidden block names.
+- `BlockAllowlist(allowed)` — only these block names allowed (air always OK).
+- `Symmetry(axis)` — require mirror symmetry about axis 0/1/2.
+- `BoxBounds(min_corner, max_corner)` — no solid outside the box.
+- `MaxBlockCount(block_name, max_count)` — limit voxels of a block.
+- `PaletteLimit(max_size)` — palette entry cap.
+- `SolidRatio(min_frac, max_frac)` — volume fraction bounds.
+- `ConstraintViolation` — exception raised on violation.
+
+## `schematica.export.materials`
+Material intelligence: automatic legacy block substitutions for MCEdit export.
+
+- `suggest_substitutions(grid) -> dict[str, str]` — for each unmapped palette
+  block, suggest the closest legacy-compatible substitute.
+- `apply_substitutions(grid, subs=None) -> int` — replace unmapped blocks with
+  their substitutes. Returns voxels substituted.
+- `substitution_report(grid) -> dict` — detailed report with counts.
 
 ```python
 from schematica.session.session import Session

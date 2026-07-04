@@ -6,6 +6,12 @@
 Renders the VoxelGrid to PNG files in `out_dir`. Creates the directory if it
 does not exist. Returns the list of written paths.
 
+### `preview_region(grid, corner, size, out_dir, views=("top", "front", "right", "iso"), max_voxels=96**3, max_dim=256) -> list[Path]`
+Extracts `grid[corner .. corner+size]` as a small dense sub-grid and renders it
+with the standard `preview()` pipeline. Useful for reviewing a single team
+base, spawn platform, or focal structure on large maps without waiting for a
+full-map render. Raises `ValueError` if the region is outside the grid.
+
 Small dense-grid files are named `preview_<view>.png`. Views:
 - `top`   — looking down the Y axis (`view_init(elev=90, azim=-90)`).
 - `front` — looking along Z (`elev=0, azim=-90`).

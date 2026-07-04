@@ -44,16 +44,21 @@ def _pack_bits(indices: np.ndarray, bits: int) -> bytes:
     n = indices.size
     n_longs = (n * bits + 63) // 64
     out = np.zeros(n_longs, dtype=np.uint64)
-    acc = np.zeros(n_longs * 64, dtype=np.uint64)
     flat = indices.astype(np.uint64).ravel()
-    # Place each value at its bit offset.
+    mask = np.uint64((1 << bits) - 1)
     for i in range(n):
-        acc[i * bits:(i + 1) * bits] = flat[i] & ((1 << bits) - 1)
-    # Reshape acc into (n_longs, 64) and pack each 64-bit row into one long.
-    acc_2d: np.ndarray = acc.reshape(n_longs, 64)
-    for bit in range(64):
-        out += (acc_2d[:, bit].astype(np.uint64) & 1) << bit
-    # Litematica stores LongArray as signed int64 in NBT.
+        val = flat[i] & mask
+        bit_offset = i * bits
+        long_idx = bit_offset // 64
+        intra_offset = bit_offset % 64
+        if intra_offset + bits <= 64:
+            out[long_idx] |= val << np.uint64(intra_offset)
+        else:
+            # Cross-long boundary.
+            first_bits = 64 - intra_offset
+            out[long_idx] |= (val & ((np.uint64(1) << np.uint64(first_bits)) - np.uint64(1))) << np.uint64(intra_offset)
+            if long_idx + 1 < n_longs:
+                out[long_idx + 1] |= val >> np.uint64(first_bits)
     return out.astype(">i8").tobytes()
 
 
