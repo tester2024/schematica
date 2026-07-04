@@ -245,7 +245,7 @@ def _read_litematic(path: Path) -> VoxelGrid | None:
         for nbt_idx, our_idx in enumerate(nbt_to_idx):
             remapped[data == nbt_idx] = our_idx
         return VoxelGrid(shape=(sx, sy, sz), palette=palette, data=remapped)
-    except Exception as e:
+    except Exception:
         import traceback
         traceback.print_exc()
         return None
@@ -260,7 +260,6 @@ def _read_mcedit(path: Path, expected_shape: tuple[int, int, int]) -> VoxelGrid 
         sy = int(tag["Height"])
         sz = int(tag["Length"])
         blocks = bytes(tag["Blocks"])
-        data_arr = bytes(tag["Data"])
         # We can't reverse the legacy ID mapping fully (it's lossy), so we
         # build a palette from just air + stone as placeholders. The validation
         # will compare structural integrity (shape + solid/air pattern).

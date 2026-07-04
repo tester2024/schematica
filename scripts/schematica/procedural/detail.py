@@ -11,11 +11,9 @@ backends and integrate with the session history system when called via
 """
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 
-from ..blocks.block import AIR, Block
+from ..blocks.block import Block
 from ..core.chunked import ChunkedGrid
 from ..core.voxel import VoxelGrid
 

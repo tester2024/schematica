@@ -24,11 +24,11 @@ Usage::
 """
 from __future__ import annotations
 
-import re
+from typing import Any
 
 import numpy as np
 
-from ..blocks.block import AIR, Block
+from ..blocks.block import Block
 from ..core.chunked import ChunkedGrid
 from ..core.voxel import VoxelGrid
 from .mcedit import DEFAULT_LEGACY_IDS, _resolve_id
@@ -325,7 +325,6 @@ def substitution_report(grid: Grid) -> dict[str, Any]:
     - ``mapped_count``: number of distinct palette entries with legacy mappings.
     - ``total_blocks``: total distinct palette entries (excluding air).
     """
-    from typing import Any
     blocks = grid.palette.blocks()
     non_air = [b for b in blocks if b.name != "minecraft:air"]
     subs = suggest_substitutions(grid)

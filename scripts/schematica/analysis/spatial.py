@@ -16,7 +16,6 @@ from collections import deque
 
 import numpy as np
 
-from ..blocks.block import Block
 from ..core.chunked import ChunkedGrid
 from ..core.voxel import VoxelGrid
 
@@ -59,8 +58,7 @@ _PASSABLE_NAMES = _NON_SOLID_NAMES | frozenset({
     "minecraft:jungle_sign", "minecraft:acacia_sign", "minecraft:dark_oak_sign",
     "minecraft:oak_wall_sign", "minecraft:spruce_wall_sign",
     "minecraft:birch_wall_sign", "minecraft:jungle_wall_sign",
-    "minecraft:acacia_wall_sign", "minecraft:dark_oak_sign",
-    "minecraft:oak_hanging_sign", "minecraft:spruce_hanging_sign",
+    "minecraft:acacia_wall_sign", "minecraft:oak_hanging_sign", "minecraft:spruce_hanging_sign",
     "minecraft:birch_hanging_sign", "minecraft:jungle_hanging_sign",
     "minecraft:acacia_hanging_sign", "minecraft:dark_oak_hanging_sign",
     "minecraft:rail", "minecraft:powered_rail", "minecraft:detector_rail",
@@ -148,7 +146,6 @@ def walkable_map(grid: Grid, *, floor_y: int | None = None) -> np.ndarray:
         return out
     # Scan all Y levels.
     out = np.zeros((sx, sz), dtype=bool)
-    dense = _dense_view(grid)
     for y in range(sy):
         for x in range(sx):
             for z in range(sz):

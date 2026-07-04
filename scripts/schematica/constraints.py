@@ -34,7 +34,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
-from .blocks.block import AIR, Block
+from .blocks.block import Block
 from .core.chunked import ChunkedGrid
 from .core.voxel import VoxelGrid
 
