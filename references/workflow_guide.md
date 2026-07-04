@@ -21,8 +21,8 @@ blockstate variants. If a target version or fallback catalog lacks a block, swap
 to a valid substitute instead of inventing an unsupported blockstate.
 
 Apply texture hacks as part of the build pass, especially on large surfaces.
-Use `texture.palette` for noise-driven material mixes, `generate.wfc` for mossy
-ruin-style variation, `replace.*` commands for weathering passes, and
+Use `texture.palette` for noise-driven material mixes, `generate.wfc` for
+project-specific palette variation, `replace.*` commands for weathering passes, and
 `retexture` / `retexture.map` for blockstate orientation changes on blocks that
 already carry the relevant state.
 Use dithering, gradients, trim bands, overlays, moss/cracks, and alternating

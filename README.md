@@ -169,7 +169,7 @@ Transforms: `Translated, Mirror, Rotated90, Rotated` (any angle, not just 90°),
 - `terrain_heightmap(shape, seed, amplitude, scale)` — Perlin-based surface.
 - `apply_terrain(session, ...)` — fills stone+dirt+grass top layer.
 - `apply_tree(session, x, z, height)` — trunk + leaf canopy.
-- `generate.wfc` — wave function collapse with a `mossy_ruins` tileset.
+- `generate.wfc` — wave function collapse from a caller-provided block palette.
 - `texture.palette` — noise-driven material mix on existing solids.
 
 ## Architecture

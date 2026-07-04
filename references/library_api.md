@@ -339,25 +339,9 @@ Wave function collapse over a 3D voxel grid.
 - `run_wfc(shape, tileset, *, seed=0, max_iter=10000) -> np.ndarray` —
   convenience: run WFC and return a `(sx,sy,sz)` object array of blockstate
   strings ready to feed into `Session.set`.
-- `tileset_mossy_ruins() -> TileSet` — bundled stone/cobblestone/mossy-brick
-  tile set for ruined walls.
-- `tileset_medieval_tower() -> TileSet` — stone-brick / cobble / oak-plank /
-  lantern tile set for tower walls and floors.
-- `tileset_modern_office() -> TileSet` — quartz / white-concrete / glass /
-  iron-bars / sea-lantern tile set for modern facades and interiors.
-- `tileset_nether_fortress() -> TileSet` — nether-brick / blackstone / basalt /
-  lava / soul-sand tile set for nether fortresses.
-- `tileset_cherry_grove() -> TileSet` — cherry-plank / pink-terracotta / grass /
-  cherry-leaves tile set for pastel builds.
-- `tileset_ocean_floor() -> TileSet` — prismarine / sea-lantern / sand / gravel
-  / water tile set for underwater ruins.
-- `tileset_by_name(name) -> TileSet` — look up a bundled tileset by name
-  (`"mossy_ruins"`, `"medieval_tower"`, `"modern_office"`, `"nether_fortress"`,
-  `"cherry_grove"`, `"ocean_floor"`). Raises `KeyError` for unknown names.
-- `TILESETS` — registry dict mapping preset name to constructor function name.
 - `tileset_wildcard(tiles) -> TileSet` — build a permissive tileset where
   every tile is compatible with every other (all-`"*` edges). Useful for
-  uniform random fills with no real constraints.
+  project-specific generated palettes without fixed bundled templates.
 
 ## `schematica.render.preview`
 

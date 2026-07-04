@@ -85,7 +85,7 @@ In the REPL, type `help` to list commands, `exit` to quit.
 | `load` | `path` | | restore session |
 | `generate.terrain` | `seed`, `amplitude`, `scale`, `top`, `filler` | | Perlin terrain |
 | `generate.tree` | `at`, `height`, `trunk`, `leaves` | | tree template |
-| `generate.wfc` | `frm`, `to`, `tileset`, `seed` | | WFC fill |
+| `generate.wfc` | `frm`, `to`, `blocks`, `seed` | | WFC fill from a `+`-separated block palette |
 | `constraint.add` | `kind`, `a`=``, `b`=`` | | add constraint kind=height a=10 / kind=ban a=minecraft:bedrock / kind=symmetry a=x / kind=bounds a=0,0,0 b=7,7,7 / kind=palette a=256 / kind=solid_ratio a=0.1 b=0.9 / kind=max_count a=minecraft:stone b=1000 |
 | `constraint.check` | | | check all constraints against current grid |
 | `validate` | `path`, `fmt`=`sponge` | | validate export round-trip |

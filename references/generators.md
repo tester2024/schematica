@@ -54,26 +54,18 @@ apply_tree(s, x=20, z=14, height=5)
 ## Wave function collapse
 
 `schematica.generators.wfc` provides tile-based wave function collapse over
-block palettes. The CLI exposes the bundled tilesets by name:
+block palettes. The CLI takes a `+`-separated block list so each build supplies
+its own palette:
 
 ```
-generate.wfc frm=4,1,4 to=12,6,12 tileset=mossy_ruins seed=42
-generate.wfc frm=4,1,4 to=12,6,12 tileset=medieval_tower seed=7
+generate.wfc frm=4,1,4 to=12,6,12 blocks=minecraft:stone+minecraft:cobblestone+minecraft:mossy_cobblestone seed=42
+generate.wfc frm=4,1,4 to=12,6,12 blocks=minecraft:oak_planks+minecraft:spruce_planks+minecraft:lantern seed=7
 ```
-
-Six bundled presets are available (looked up via `tileset_by_name(name)`):
-
-| Name | Theme | Key blocks |
-|------|-------|------------|
-| `mossy_ruins` | ruined walls | stone, cobblestone, mossy stone bricks |
-| `medieval_tower` | tower walls + floors | stone bricks, cobblestone, oak planks, lantern |
-| `modern_office` | modern facades / interiors | quartz, white concrete, glass, iron bars, sea lantern |
-| `nether_fortress` | nether builds | nether bricks, blackstone, basalt, lava, soul sand |
-| `cherry_grove` | pastel builds | cherry planks, pink terracotta, grass, cherry leaves |
-| `ocean_floor` | underwater ruins | prismarine, sea lantern, sand, gravel, water |
 
 `tileset_wildcard(tiles)` builds a permissive all-`"*` tileset for uniform
-random fills with no real adjacency constraints.
+random fills with no real adjacency constraints. For structured adjacency,
+construct a fresh `TileSet` with project-specific `Tile(..., edges=...)` values
+in Python and pass it to `run_wfc`.
 
 ## SDF smooth blending (Phase 12)
 
@@ -243,7 +235,7 @@ CLI example:
 ```
 texture.palette frm=0,1,0 to=63,8,63 blocks=minecraft:stone+minecraft:cobblestone+minecraft:mossy_cobblestone+minecraft:stone_bricks weights=0.50+0.25+0.15+0.10 noise=perlin scale=0.12 seed=42
 retexture property=axis value=x name=minecraft:oak_log
-generate.wfc frm=8,1,8 to=24,6,24 tileset=mossy_ruins seed=9
+generate.wfc frm=8,1,8 to=24,6,24 blocks=minecraft:stone+minecraft:cobblestone+minecraft:mossy_cobblestone+minecraft:stone_bricks seed=9
 ```
 
 ## Recipe: terrain + trees + export

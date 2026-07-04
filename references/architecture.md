@@ -38,7 +38,7 @@ under `scripts/`. All paths below are relative to the skill root unless noted.
 │   │   │   ├── replace.py            replace / replace_bulk / replace_by_name / replace_pattern
 │   │   │   ├── retexture.py         blockstate property remap
 │   │   │   ├── texture.py           TexturePalette (noise-driven material mix)
-│   │   │   └── wfc.py               wave function collapse tilesets
+│   │   │   └── wfc.py               wave function collapse with custom tile sets
 │   │   ├── procedural/
 │   │   │   └── detail.py            paint_gradient, edge_wear, surface_scatter
 │   │   ├── analysis/

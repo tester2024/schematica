@@ -225,7 +225,7 @@ it into context unless patching. Key modules:
 - `schematica.shapes.polygon` — `Extrude`, `extrude_polygon` (shapely + SVG path ``d`` strings)
 - `schematica.shapes.mesh` — `MeshShape`, `load_mesh` (trimesh-backed)
 - `schematica.shapes.heightmap` — `Heightmap`, `from_image`
-- `schematica.generators` — `perlin2d`, `fbm2d`, `apply_terrain`, `apply_tree`, `terrain_heightmap`; `schematica.generators.wfc` — `WFC`, `TileSet`, `run_wfc`, 6 bundled presets (`tileset_mossy_ruins`, `tileset_medieval_tower`, `tileset_modern_office`, `tileset_nether_fortress`, `tileset_cherry_grove`, `tileset_ocean_floor`) + `tileset_by_name` lookup
+- `schematica.generators` — `perlin2d`, `fbm2d`, `apply_terrain`, `apply_tree`, `terrain_heightmap`; `schematica.generators.wfc` — `WFC`, `Tile`, `TileSet`, `run_wfc`, `tileset_wildcard` for caller-generated palettes
 - `schematica.render.preview` — `preview` (PNG previews)
 - `schematica.export.sponge` — `write_sponge` (`.schem` writer)
 - `schematica.export.mcedit` — `write_mcedit` (legacy `.schematic` writer)

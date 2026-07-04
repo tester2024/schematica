@@ -68,7 +68,7 @@ run `python -m schematica --script <path>` from anywhere.
 | Resume session | `load path=FILE.schematica` |
 | Generate terrain | `generate.terrain seed=N amplitude=N` |
 | Generate tree | `generate.tree at=x,y,z height=N` |
-| Generate WFC patch | `generate.wfc frm=x,y,z to=x,y,z tileset=mossy_ruins` |
+| Generate WFC patch | `generate.wfc frm=x,y,z to=x,y,z blocks=minecraft:stone+minecraft:cobblestone` |
 
 ## Argument syntax rules (critical)
 
@@ -339,7 +339,7 @@ common cases:
 session.new size=64x32x64 version=1.20.1
 generate.terrain seed=42 amplitude=8 scale=0.06
 generate.tree at=8,1,8 height=7
-generate.wfc frm=20,1,20 to=30,6,30 tileset=mossy_ruins seed=7
+generate.wfc frm=20,1,20 to=30,6,30 blocks=minecraft:stone+minecraft:cobblestone+minecraft:mossy_cobblestone seed=7
 preview out_dir=terrain_previews
 export path=terrain.schem
 ```
