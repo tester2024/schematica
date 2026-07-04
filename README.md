@@ -158,6 +158,8 @@ references/       docs loaded on demand
   a 32³ grid where a 3³ box was added touches only 27 voxels.
 - **Preview color map**: hand-picked for common blocks; others hashed from name.
   Edit `scripts/schematica/render/preview.py::_BLOCK_COLORS` to extend.
+- **Bulk procedural writes**: use `Session.set_box(...)` and `Session.set_many(...)`
+  for high-volume generated detail instead of thousands of tiny shape masks.
 - **Determinism**: all procedural generators take a `seed`; pin it in tests.
 
 ### Failure modes to watch
@@ -168,13 +170,17 @@ references/       docs loaded on demand
 - **Large grids**: matplotlib 3D voxel preview is comfortable around ~32³.
   Larger dense grids automatically use downsampled 2D projected previews;
   chunked grids render projected previews without materialising dense arrays.
+  Projected fallback `iso` writes `preview_iso_projected.png`.
 - **Backslashes in REPL scripts**: shlex treats `\` as escape. Use forward
   slashes in `path=` arguments, or quote the whole path.
-- **minecraft-data submodule missing**: the registry falls back to a small
-  built-in block list. Validate real builds against a vendored `minecraft_data/`.
+- **minecraft-data submodule missing**: the registry falls back to a compact
+  built-in block list with common structural, resource, mapmaking, colored, and
+  stateful detail blocks. Validate full-fidelity builds against a vendored
+  `minecraft_data/`.
 - **Legacy versions**: for 1.7-1.12 colored blocks, prefer MCEdit `.schematic`.
   Sponge export warns when a pre-1.13 `data_version` is paired with modern
-  flattened blockstate names.
+  flattened blockstate names. MCEdit export warns when a non-air block has no
+  legacy ID mapping; use `strict=True` to fail instead.
 
 ### Extending the toolkit
 

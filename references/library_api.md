@@ -38,12 +38,16 @@ reg["minecraft:stone"]        # BlockDef(id, name, display_name, states)
 reg["stone"]                  # same lookup; minecraft: prefix is normalized
 reg.by_id(1)                  # BlockDef by numeric id
 "minecraft:stone" in reg     # True
-reg.validate(Block.parse("minecraft:oak_log[axis=y]"))   # raises on bad state
-reg.resolve(Block.parse("minecraft:oak_log"))             # fills axis=y default
+reg.validate(Block.parse("minecraft:oak_log[axis=y]"))   # raises on bad keys/values
+reg.resolve(Block.parse("minecraft:oak_log"))             # validates + fills axis=y default
 reg.search("oak")             # list[BlockDef]
 reg.all()                     # list[BlockDef]
 BlockRegistry.list_versions()  # ["1.20.1", "1.21", ...] if minecraft_data vendored
 ```
+
+`resolve(block, strict=True)` is strict by default: explicit unknown state keys,
+invalid enum/bool/int values, and states on stateless fallback blocks raise
+`ValueError` instead of being silently dropped.
 
 ### `BlockDef(id, name, display_name, states: tuple[BlockStateSchema])`
 - `bd.default_block()` — `Block` with all default states filled.
@@ -196,7 +200,9 @@ Trunk + leaf canopy sphere.
 Writes `preview_<view>.png` files. Small dense grids use matplotlib
 `Axes3D.voxels` under Agg. Large dense grids switch to downsampled projected
 views and warn; `ChunkedGrid` previews use projected views without dense
-materialisation. Colors come from `_BLOCK_COLORS` map in `preview.py`.
+materialisation. Projected fallback `iso` writes `preview_iso_projected.png` to
+avoid implying a true 3D isometric render. Colors come from `_BLOCK_COLORS` map
+in `preview.py`.
 
 ## `schematica.export.sponge`
 
@@ -208,12 +214,13 @@ blockstate properties.
 
 ## `schematica.export.mcedit`
 
-### `write_mcedit(grid, path, legacy_ids=None, block_meta=None) -> Path`
+### `write_mcedit(grid, path, legacy_ids=None, block_meta=None, strict=False) -> Path`
 Writes gzip-compressed legacy MCEdit `.schematic` with `Blocks` and `Data` byte
 arrays. The default mapping covers common legacy blocks and metadata for all 16
 colors of wool, stained glass, terracotta, and concrete, plus common stone,
-plank, log, and sand variants. Unknown blocks become air unless `legacy_ids` or
-`block_meta` provides an override.
+plank, log, sand, resource, and mapmaking variants. Non-air blocks without a
+legacy mapping warn because they become air. Set `strict=True` to raise instead,
+or call `legacy_unmapped_blocks(grid, legacy_ids=None) -> list[str]` before export.
 
 ## `schematica.export.litematic`
 
@@ -223,11 +230,13 @@ Writes a single-region Litematica `.litematic` with palette and packed
 
 ## `schematica.session.session`
 
-### `Session.new(shape, version="1.20.1", fill=AIR) -> Session`
+### `Session.new(shape, version="1.20.1", fill=AIR, chunked=False, chunk_size=16) -> Session`
 ### `Session.load(path) -> Session`, `Session.restore(snap) -> Session`
 
 Methods (all return `self` for chaining unless noted):
 - `add(shape, block)`, `subtract(shape)`, `intersect(shape, block)`, `paint(shape, block)`.
+- `set_box(frm, to, block, history=True, clip=True) -> int` — fast inclusive cuboid write.
+- `set_many(coords, block, history=True, skip_out_of_bounds=True) -> int` — fast point writes.
 - `replace(src, dst) -> int`, `fill_all(block)`, `clear()`.
 - `clone_translate(frm, to, offset, count=1, include_air=False) -> int`.
 - `clone_cardinal(frm, to, center, include_air=False) -> int`.
