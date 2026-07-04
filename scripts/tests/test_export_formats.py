@@ -6,10 +6,11 @@ import io
 from pathlib import Path
 
 import nbtlib
+import pytest
 
 from schematica.core.voxel import VoxelGrid
 from schematica.export.litematic import write_litematic
-from schematica.export.mcedit import write_mcedit
+from schematica.export.mcedit import legacy_unmapped_blocks, write_mcedit
 from schematica.session.session import Session
 from schematica.shapes.primitives import Box
 
@@ -45,11 +46,41 @@ def test_mcedit_unknown_block_becomes_air(tmp_path):
                                        Block.parse("minecraft:nonsense_block")])
     g.data[...] = 1
     out = tmp_path / "weird.schematic"
-    write_mcedit(g, out)
+    with pytest.warns(RuntimeWarning, match="map 1 non-air block"):
+        write_mcedit(g, out)
     f = _load_nbt(out)
     blocks = bytes(f["Blocks"])
     # Unknown block -> id 0 (air).
     assert all(b == 0 for b in blocks)
+
+
+def test_mcedit_strict_rejects_unmapped_block(tmp_path):
+    from schematica.blocks.block import Block
+    from schematica.core.palette import Palette
+    g = VoxelGrid(shape=(1, 1, 1))
+    g.palette = Palette.from_blocks([Block.parse("minecraft:air"),
+                                      Block.parse("minecraft:nonsense_block")])
+    g.data[...] = 1
+    assert legacy_unmapped_blocks(g) == ["minecraft:nonsense_block"]
+    with pytest.raises(ValueError, match="no legacy id mapping"):
+        write_mcedit(g, tmp_path / "strict.schematic", strict=True)
+
+
+def test_mcedit_fallback_resource_blocks_have_legacy_mapping(tmp_path):
+    s = Session.new((4, 1, 1))
+    for x, block in enumerate((
+        "minecraft:iron_block",
+        "minecraft:gold_block",
+        "minecraft:diamond_block",
+        "minecraft:emerald_block",
+    )):
+        s.set_many([(x, 0, 0)], block)
+    assert legacy_unmapped_blocks(s.grid) == []
+    out = tmp_path / "resources.schematic"
+    write_mcedit(s.grid, out)
+    f = _load_nbt(out)
+    blocks = bytes(f["Blocks"])
+    assert {41, 42, 57, 133} <= set(blocks)
 
 
 def test_mcedit_chunked_matches_dense(tmp_path):

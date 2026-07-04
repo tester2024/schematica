@@ -17,6 +17,7 @@ air (id 0). Block metadata (the old ``Data`` array) is set from an optional
 """
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 
 import nbtlib
@@ -34,6 +35,10 @@ DEFAULT_LEGACY_IDS: dict[str, int] = {
     "minecraft:granite": 1,
     "minecraft:diorite": 1,
     "minecraft:andesite": 1,
+    "minecraft:deepslate": 1,
+    "minecraft:tuff": 1,
+    "minecraft:calcite": 1,
+    "minecraft:smooth_stone": 1,
     "minecraft:grass_block": 2,
     "minecraft:dirt": 3,
     "minecraft:cobblestone": 4,
@@ -55,24 +60,55 @@ DEFAULT_LEGACY_IDS: dict[str, int] = {
     "minecraft:lapis_ore": 21,
     "minecraft:lapis_block": 22,
     "minecraft:sandstone": 24,
+    "minecraft:red_bed": 26,
+    "minecraft:oak_slab": 44,
+    "minecraft:stone_slab": 44,
     "minecraft:bricks": 45,
+    "minecraft:mossy_cobblestone": 48,
     "minecraft:obsidian": 49,
+    "minecraft:torch": 50,
+    "minecraft:chest": 54,
+    "minecraft:diamond_block": 57,
+    "minecraft:crafting_table": 58,
+    "minecraft:furnace": 61,
+    "minecraft:oak_door": 64,
+    "minecraft:ladder": 65,
+    "minecraft:cobblestone_stairs": 67,
+    "minecraft:iron_door": 71,
+    "minecraft:redstone_torch": 76,
+    "minecraft:oak_trapdoor": 96,
     "minecraft:oak_fence": 85,
     "minecraft:glowstone": 89,
+    "minecraft:portal": 90,
+    "minecraft:glass_pane": 102,
+    "minecraft:iron_bars": 101,
+    "minecraft:oak_fence_gate": 107,
+    "minecraft:stone_brick_stairs": 109,
     "minecraft:stone_bricks": 98,
     "minecraft:mossy_stone_bricks": 98,  # same id, meta 1 -- approximated here
     "minecraft:cracked_stone_bricks": 98,
+    "minecraft:redstone_lamp": 123,
+    "minecraft:ender_chest": 130,
     "minecraft:iron_block": 42,
     "minecraft:gold_block": 41,
-    "minecraft:diamond_block": 57,
     "minecraft:emerald_block": 133,
+    "minecraft:cobblestone_wall": 139,
+    "minecraft:beacon": 138,
+    "minecraft:anvil": 145,
+    "minecraft:redstone_block": 152,
+    "minecraft:barrier": 166,
+    "minecraft:iron_trapdoor": 167,
+    "minecraft:coal_block": 173,
     "minecraft:end_stone": 121,
     "minecraft:quartz_block": 155,
     "minecraft:purple_stained_glass": 95,
     "minecraft:prismarine": 168,
     "minecraft:sea_lantern": 169,
     "minecraft:packed_ice": 174,
-    "minecraft:mossy_cobblestone": 48,
+    "minecraft:chain": 101,
+    "minecraft:lantern": 50,
+    "minecraft:oak_sign": 63,
+    "minecraft:oak_wall_sign": 68,
 }
 
 DEFAULT_LEGACY_META: dict[str, int] = {
@@ -86,6 +122,7 @@ DEFAULT_LEGACY_META: dict[str, int] = {
     "minecraft:red_sand": 1,
     "minecraft:mossy_stone_bricks": 1,
     "minecraft:cracked_stone_bricks": 2,
+    "minecraft:chiseled_stone_bricks": 3,
 }
 
 _COLOR_META = {
@@ -112,10 +149,15 @@ for _color, _meta in _COLOR_META.items():
     DEFAULT_LEGACY_META[f"minecraft:{_color}_wool"] = _meta
     DEFAULT_LEGACY_IDS[f"minecraft:{_color}_stained_glass"] = 95
     DEFAULT_LEGACY_META[f"minecraft:{_color}_stained_glass"] = _meta
+    DEFAULT_LEGACY_IDS[f"minecraft:{_color}_stained_glass_pane"] = 160
+    DEFAULT_LEGACY_META[f"minecraft:{_color}_stained_glass_pane"] = _meta
     DEFAULT_LEGACY_IDS[f"minecraft:{_color}_terracotta"] = 159
     DEFAULT_LEGACY_META[f"minecraft:{_color}_terracotta"] = _meta
     DEFAULT_LEGACY_IDS[f"minecraft:{_color}_concrete"] = 251
     DEFAULT_LEGACY_META[f"minecraft:{_color}_concrete"] = _meta
+    DEFAULT_LEGACY_IDS[f"minecraft:{_color}_bed"] = 26
+    DEFAULT_LEGACY_IDS[f"minecraft:{_color}_carpet"] = 171
+    DEFAULT_LEGACY_META[f"minecraft:{_color}_carpet"] = _meta
 
 
 def _resolve_id(blockstate_str: str, mapping: dict[str, int]) -> int:
@@ -132,6 +174,41 @@ def _resolve_meta(blockstate_str: str, mapping: dict[str, int]) -> int:
         return mapping[blockstate_str]
     base = blockstate_str.split("[", 1)[0]
     return mapping.get(base, 0)
+
+
+def legacy_unmapped_blocks(grid: VoxelGrid | ChunkedGrid,
+                           legacy_ids: dict[str, int] | None = None) -> list[str]:
+    """Return non-air palette entries that would become air in MCEdit export."""
+    ids = dict(DEFAULT_LEGACY_IDS)
+    if legacy_ids:
+        ids.update(legacy_ids)
+    unmapped: list[str] = []
+    for block in grid.palette.blocks():
+        blockstate = block.to_blockstate_str()
+        base = blockstate.split("[", 1)[0]
+        if base == "minecraft:air":
+            continue
+        if _resolve_id(blockstate, ids) == 0:
+            unmapped.append(blockstate)
+    return unmapped
+
+
+def _check_unmapped_legacy_blocks(grid: VoxelGrid | ChunkedGrid,
+                                  legacy_ids: dict[str, int] | None,
+                                  strict: bool) -> None:
+    unmapped = legacy_unmapped_blocks(grid, legacy_ids)
+    if not unmapped:
+        return
+    sample = ", ".join(unmapped[:8])
+    suffix = "..." if len(unmapped) > 8 else ""
+    message = (
+        f"MCEdit export will map {len(unmapped)} non-air block(s) to air because "
+        f"they have no legacy id mapping: {sample}{suffix}. Pass legacy_ids=... "
+        f"or choose Sponge/Litematica for modern blocks."
+    )
+    if strict:
+        raise ValueError(message)
+    warnings.warn(message, RuntimeWarning, stacklevel=3)
 
 
 def _encode_voxels_dense(grid: VoxelGrid, ids: dict[str, int], meta: dict[str, int]) -> tuple[bytes, bytes]:
@@ -194,13 +271,17 @@ def _encode_voxels_chunked(grid: ChunkedGrid, ids: dict[str, int], meta: dict[st
 
 def write_mcedit(grid: VoxelGrid | ChunkedGrid, path: str | Path, *,
                  legacy_ids: dict[str, int] | None = None,
-                 block_meta: dict[str, int] | None = None) -> Path:
+                 block_meta: dict[str, int] | None = None,
+                 strict: bool = False) -> Path:
     """Write a legacy MCEdit `.schematic` (gzip NBT, byte block ids).
 
     ``legacy_ids`` optionally augments/overrides ``DEFAULT_LEGACY_IDS``.
     ``block_meta`` optionally augments/overrides ``DEFAULT_LEGACY_META``.
+    If ``strict`` is True, non-air blocks without legacy mappings raise instead
+    of being written as air.
     """
     path = Path(path)
+    _check_unmapped_legacy_blocks(grid, legacy_ids, strict)
     ids = dict(DEFAULT_LEGACY_IDS)
     meta = dict(DEFAULT_LEGACY_META)
     if legacy_ids:
