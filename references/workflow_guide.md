@@ -4,11 +4,42 @@ This document defines the agent's decision framework for choosing between the
 three execution modes, with advanced recipes for each. **Read this before
 building anything.**
 
+## Professional map baseline
+
+Do not treat map generation as a simple shape-placement task. For user-facing
+maps, first plan the design brief: target Minecraft version, theme, dimensions,
+major landmarks, terrain, circulation, player sightlines, focal points, and the
+intended experience. The output should meet veteran map design standards: clear
+composition, readable silhouettes, useful paths, detailed surfaces, convincing
+transitions, and no broad unfinished flat areas.
+
+Use the richest block vocabulary available for the selected version. Validate
+blocks against `BlockRegistry.for_version(...)` or the CLI validation layer, and
+include detail blocks when supported: slabs, stairs, walls, fences, gates,
+panes, trapdoors, doors, carpets, lanterns, lights, foliage, fluids, and useful
+blockstate variants. If a target version or fallback catalog lacks a block, swap
+to a valid substitute instead of inventing an unsupported blockstate.
+
+Apply texture hacks as part of the build pass, especially on large surfaces.
+Use `texture.palette` for noise-driven material mixes, `generate.wfc` for mossy
+ruin-style variation, `replace.*` commands for weathering passes, and
+`retexture` / `retexture.map` for blockstate orientation changes on blocks that
+already carry the relevant state.
+Use dithering, gradients, trim bands, overlays, moss/cracks, and alternating
+block orientations to break flat surfaces, but keep every trick version-valid
+and visually purposeful.
+
+A finished map should include layered detailing: material variation, trims,
+supports, roofs, edge work, landscaping, lighting, interiors where visible,
+roads or paths, focal structures, and deliberate negative space. Always render
+top/front/right/iso previews and revise weak silhouettes, empty zones,
+repetition, and unresolved transitions before export.
+
 ## The three execution modes
 
 | Mode | When | How | Pros | Cons |
 |---|---|---|---|---|
-| **CLI script** | Simple builds: <15 commands, only primitives/clone commands in the command table | Write `.txt`, run `python -m schematica --script file.txt` | No Python boilerplate, validation layer catches mistakes, easy to verify | Limited to registered commands, no arbitrary loops/conditionals |
+| **CLI script** | CLI-expressible builds: registered commands cover the structure and detail passes | Write `.txt`, run `python -m schematica --script file.txt` | No Python boilerplate, validation layer catches mistakes, easy to verify | Limited to registered commands, no arbitrary loops/conditionals |
 | **Python script** | Complex builds: loops, conditionals, procedural gen, custom shapes, mesh import | Write `.py`, run `python script.py` with `PYTHONPATH=scripts` | Full toolkit access, all shapes, all generators, arbitrary logic | More boilerplate, no auto-validation (must check manually) |
 | **Inline `-c`** | One-liners, quick experiments, piping into export | `python -c "..."` with `PYTHONPATH=scripts` | Fastest, no temp file | Hard to read, no error recovery, limited to one expression block |
 
@@ -20,9 +51,11 @@ building anything.**
    add.hellipsoid, add.pyramid, add.torus, add.helix, add.arch,
    add.staircase, add.spiral, add.line, add.wedge, add.plane,
    subtract.box, subtract.sphere, subtract.cylinder, subtract.dome,
-   subtract.pyramid, paint.box, paint.sphere, replace, fill, clear,
-   mirror, rotate, clone.translate, clone.cardinal, undo, redo, stats,
-   preview, export, save, load`
+   subtract.pyramid, paint.box, paint.sphere, replace, replace.bulk,
+   replace.by_name, replace.pattern, retexture, retexture.map,
+   texture.palette, fill, clear, mirror, rotate, clone.translate,
+   clone.cardinal, generate.terrain, generate.tree, generate.wfc, undo, redo,
+   stats, preview, export, save, load`
    → **YES → use CLI script** (mode 1). It's the fastest and gets validation.
 
 2. **Does the build need loops, conditionals, math, or procedural generation beyond clone repetition/symmetry?**
@@ -44,7 +77,7 @@ building anything.**
 **Default**: when in doubt, use **CLI script**. It's the mode with the most
 guardrails. Only escalate to Python when the CLI can't express what's needed.
 
-## Mode 1: CLI script (preferred for simple builds)
+## Mode 1: CLI script (preferred for command-only builds)
 
 ### Template
 

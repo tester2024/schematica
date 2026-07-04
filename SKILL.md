@@ -27,6 +27,33 @@ Two storage backends are supported:
   160×64×160 map with a 20-voxel cube uses 12 chunks (~98 KB) instead of 3.2 MB
   dense; a 1600×320×1600 mega-map is addressable without OOM.
 
+## Map design quality standard
+
+Treat every map request as a professional design task, not a quick primitive
+demo. A useful schematic should look intentional from multiple views, include
+scale-aware composition, and carry enough detail to meet veteran Minecraft map
+design expectations.
+
+Before building, define the map's purpose, target Minecraft version, scale,
+theme, layout, landmarks, player paths, sightlines, terrain treatment, and
+material palette. Use the full block catalog available for the target version:
+solid blocks, slabs, stairs, walls, fences, gates, panes, trapdoors, doors,
+carpets, lights, foliage, fluids, and blockstate variants when supported. If the
+requested version or fallback registry does not support a detail block, choose a
+version-valid substitute instead of emitting an invalid blockstate.
+
+Use texture hacks deliberately: weighted material mixes, noise-driven texture
+palettes, dithering, gradients, mossy/cracked/weathered variants, orientation
+changes such as log axes or stair/slab facing, thin overlays such as carpets,
+trapdoors and panes, and WFC/replace/retexture passes. These are visual tricks
+built from real blocks and valid blockstates, not fake texture names.
+
+For real maps, prefer layered detail over large flat fills: varied materials,
+trim, depth changes, supports, roofs, edges, gradients, organic terrain,
+landscaping, lighting, interiors, roads, signage, and negative-space carving.
+Verify with previews from top/front/right/iso views and revise weak silhouettes,
+empty areas, repetitive surfaces, or unresolved transitions before exporting.
+
 ## When to use this skill
 
 Trigger this skill whenever the user:
@@ -304,5 +331,9 @@ write_sponge(s.grid, "boulder.schem")
   could be True, enabling the chunked backend to skip untouched chunks.
 - **Palette index 0 is always air**; an all-zero grid is empty.
 - **Blockstate strings**: `minecraft:oak_log[axis=y]`. `Block.parse` round-trips
-  them. `BlockRegistry.resolve` fills defaults; `validate` rejects unknown states.
+  them. `BlockRegistry.resolve` strictly validates keys/values and fills
+  defaults; `validate` rejects unknown explicit states.
+- **Bulk drawing**: for generated maps with many cuboids or point details, prefer
+  `Session.set_box(...)` and `Session.set_many(...)` over thousands of tiny
+  shape operations.
 - **No async**: the whole pipeline is synchronous (numpy + nbtlib + matplotlib).

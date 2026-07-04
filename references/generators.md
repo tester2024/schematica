@@ -60,6 +60,32 @@ generate.wfc frm=4,1,4 to=12,6,12 tileset=mossy_ruins seed=42
 More templates such as village, temple, tower, and dungeon remain roadmap
 items.
 
+## Texture hacks
+
+Use texture tools to make surfaces read like veteran Minecraft builds instead
+of flat fills. A texture hack must still be a real block or valid blockstate for
+the target version.
+
+- `texture.palette` / `TexturePalette` applies a weighted, noise-driven material
+  mix to existing solids. Use it for stone gradients, dirt/grass variation,
+  mossy ruin patches, cracked floors, or subtle roof variation.
+- `retexture` changes a supported blockstate property such as `axis`, `facing`,
+  `half`, or `waterlogged` on existing palette entries that already carry that
+  state.
+- `retexture.map` remaps state values across a region, useful for alternating
+  log axes, rotated stairs, or repeated trim details.
+- `replace.bulk`, `replace.by_name`, and `replace.pattern` are useful for
+  weathering passes: turn exposed stone into mossy blocks, darken edges, or
+  vary blocks only near air, water, plants, or structural joints.
+
+CLI example:
+
+```
+texture.palette frm=0,1,0 to=63,8,63 blocks=minecraft:stone+minecraft:cobblestone+minecraft:mossy_cobblestone+minecraft:stone_bricks weights=0.50+0.25+0.15+0.10 noise=perlin scale=0.12 seed=42
+retexture property=axis value=x name=minecraft:oak_log
+generate.wfc frm=8,1,8 to=24,6,24 tileset=mossy_ruins seed=9
+```
+
 ## Recipe: terrain + trees + export
 
 ```python

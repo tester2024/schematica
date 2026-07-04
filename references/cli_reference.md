@@ -57,6 +57,12 @@ In the REPL, type `help` to list commands, `exit` to quit.
 | `paint.box` | `frm`, `to`, `block` | | repaint existing solids |
 | `paint.sphere` | `center`, `r`, `block` | | repaint existing solids |
 | `replace` | `src`, `dst` | | global find/replace |
+| `replace.bulk` | `mapping` | | bulk replacements, e.g. `stone=andesite,dirt=grass_block` |
+| `replace.by_name` | `src_name`, `dst` | | replace all blocks with a name, ignoring state |
+| `replace.pattern` | `src`, `dst`, `neighbours` | | replace only when neighbor rules match |
+| `retexture` | `property`, `value`, `name` | | set a blockstate property where supported |
+| `retexture.map` | `property`, `mapping`, `name` | | remap blockstate values, e.g. `x=y,y=z,z=x` |
+| `texture.palette` | `frm`, `to`, `blocks`, `weights`, `noise`, `scale`, `seed` | | noise-driven material mix on existing solids |
 | `fill` | `block` | | fill entire grid |
 | `clear` | | | all air |
 | `mirror` | `axis`=`x\|y\|z` | | |
