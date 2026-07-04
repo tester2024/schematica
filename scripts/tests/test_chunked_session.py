@@ -123,11 +123,11 @@ def test_export_chunked_matches_dense(tmp_path):
     fd = nbtlib.File.load(pd, gzipped=True)
     fc = nbtlib.File.load(pc, gzipped=True)
     # Width/Height/Length must match.
-    assert fd["Schematic"]["Width"] == fc["Schematic"]["Width"]
-    assert fd["Schematic"]["Height"] == fc["Schematic"]["Height"]
-    assert fd["Schematic"]["Length"] == fc["Schematic"]["Length"]
+    assert fd["Width"] == fc["Width"]
+    assert fd["Height"] == fc["Height"]
+    assert fd["Length"] == fc["Length"]
     # BlockData should be the same length (one varint per voxel).
-    assert len(fd["Schematic"]["BlockData"]) == len(fc["Schematic"]["BlockData"])
+    assert len(fd["BlockData"]) == len(fc["BlockData"])
 
 
 def test_export_chunked_big_map_no_oom(tmp_path):

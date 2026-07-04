@@ -25,8 +25,10 @@ def test_export_stone_cube(tmp_path):
     write_sponge(s.grid, out)
     assert out.exists()
     # Read it back
-    f = _load_schem(out)
-    sch = f["Schematic"]
+    sch = _load_schem(out)
+    assert sch.root_name == "Schematic"
+    assert int(sch["Version"]) == 2
+    assert int(sch["DataVersion"]) == 3465
     assert int(sch["Width"]) == 3
     assert int(sch["Height"]) == 3
     assert int(sch["Length"]) == 3
@@ -41,7 +43,7 @@ def test_export_air_grid(tmp_path):
     out = tmp_path / "empty.schem"
     write_sponge(s.grid, out)
     f = _load_schem(out)
-    assert int(f["Schematic"]["Palette"]["minecraft:air"]) == 0
+    assert int(f["Palette"]["minecraft:air"]) == 0
 
 
 def test_export_offset_and_metadata(tmp_path):
@@ -50,8 +52,8 @@ def test_export_offset_and_metadata(tmp_path):
     out = tmp_path / "off.schem"
     write_sponge(s.grid, out, offset=(5, 10, 15), metadata={"name": "test"})
     f = _load_schem(out)
-    assert [int(v) for v in f["Schematic"]["Offset"]] == [5, 10, 15]
-    assert str(f["Schematic"]["Metadata"]["name"]) == "test"
+    assert [int(v) for v in f["Offset"]] == [5, 10, 15]
+    assert str(f["Metadata"]["name"]) == "test"
 
 
 def test_export_warns_on_modern_palette_with_legacy_data_version(tmp_path):

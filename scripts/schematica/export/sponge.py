@@ -1,7 +1,8 @@
 """Write Sponge schematic v2/v3 (.schem) via nbtlib.
 
 Sponge v2 spec (data version 2):
-  Root tag "Schematic":
+  Named root tag "Schematic":
+    Version (int)
     Width, Height, Length (short)
     DataVersion (int)
     Palette (compound: blockstate_str -> int)
@@ -128,21 +129,19 @@ def write_sponge(grid: VoxelGrid | ChunkedGrid, path: str | Path, *, data_versio
     else:
         block_bytes = _encode_block_data_dense(grid)
     root = Compound({
-        "Schematic": Compound({
-            "Version": Int(2),
-            "DataVersion": Int(data_version),
-            "Width": Short(sx),
-            "Height": Short(sy),
-            "Length": Short(sz),
-            "PaletteMax": Int(len(palette)),
-            "Palette": Compound(palette_comp),
-            "BlockData": ByteArray([b if b < 128 else b - 256 for b in block_bytes]),
-            "Offset": IntArray([Int(offset[0]), Int(offset[1]), Int(offset[2])]),
-        })
+        "Version": Int(2),
+        "DataVersion": Int(data_version),
+        "Width": Short(sx),
+        "Height": Short(sy),
+        "Length": Short(sz),
+        "PaletteMax": Int(len(palette)),
+        "Palette": Compound(palette_comp),
+        "BlockData": ByteArray([b if b < 128 else b - 256 for b in block_bytes]),
+        "Offset": IntArray([Int(offset[0]), Int(offset[1]), Int(offset[2])]),
     })
     if metadata:
-        root["Schematic"]["Metadata"] = Compound({k: _to_nbt(v) for k, v in metadata.items()})
-    file = nbtlib.File(root, gzipped=True)
+        root["Metadata"] = Compound({k: _to_nbt(v) for k, v in metadata.items()})
+    file = nbtlib.File(root, gzipped=True, root_name="Schematic")
     file.save(path)
     return path
 

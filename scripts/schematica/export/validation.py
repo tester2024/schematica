@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -180,7 +181,7 @@ def _read_sponge(path: Path) -> VoxelGrid | None:
     try:
         import nbtlib
         tag = nbtlib.load(str(path), gzipped=True)
-        sch = tag["Schematic"]
+        sch = _sponge_root(tag)
         sx = int(sch["Width"])
         sy = int(sch["Height"])
         sz = int(sch["Length"])
@@ -206,6 +207,17 @@ def _read_sponge(path: Path) -> VoxelGrid | None:
         return VoxelGrid(shape=(sx, sy, sz), palette=palette, data=data)
     except Exception:
         return None
+
+
+def _sponge_root(tag: Any) -> Any:
+    """Return the Sponge schematic compound.
+
+    Older Schematica builds nested the data under a child compound named
+    ``Schematic``. Current exports use the standard named root compound.
+    """
+    if "Width" in tag and "Palette" in tag and "BlockData" in tag:
+        return tag
+    return tag["Schematic"]
 
 
 def _read_litematic(path: Path) -> VoxelGrid | None:

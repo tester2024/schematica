@@ -11,7 +11,7 @@ corresponds to Minecraft Java 1.20.1.
 
 ```
 File (gzipped)
-└── Schematic: Compound
+└── Named root "Schematic": Compound
     ├── Version: Int(2)
     ├── DataVersion: Int(3465)
     ├── Width: Short(sx)
@@ -51,12 +51,12 @@ import nbtlib
 from pathlib import Path
 
 f = nbtlib.File.parse(io.BytesIO(gzip.decompress(Path("build.schem").read_bytes())))
-sch = f["Schematic"]
-width = int(sch["Width"])
-height = int(sch["Height"])
-length = int(sch["Length"])
-palette = {k: int(v) for k, v in sch["Palette"].items()}
-block_data = bytes(sch["BlockData"])
+assert f.root_name == "Schematic"
+width = int(f["Width"])
+height = int(f["Height"])
+length = int(f["Length"])
+palette = {k: int(v) for k, v in f["Palette"].items()}
+block_data = bytes(f["BlockData"])
 ```
 
 ## Limitations
@@ -76,9 +76,9 @@ Sanity-check a written file:
 import gzip, io, nbtlib
 from pathlib import Path
 f = nbtlib.File.parse(io.BytesIO(gzip.decompress(Path("build.schem").read_bytes())))
-sch = f["Schematic"]
-assert int(sch["Version"]) == 2
-assert int(sch["Width"]) * int(sch["Height"]) * int(sch["Length"]) == len(bytes(sch["BlockData"]))
+assert f.root_name == "Schematic"
+assert int(f["Version"]) == 2
+assert int(f["Width"]) * int(f["Height"]) * int(f["Length"]) <= len(bytes(f["BlockData"]))
 ```
 (The varint makes the byte count >= voxel count, never less; the assertion
 above is a lower bound check.)
