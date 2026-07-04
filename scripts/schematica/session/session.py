@@ -30,6 +30,39 @@ from ..shapes.base import Shape, shape_bounds
 from .history import Delta, History, diff_delta
 
 
+class _MaskShape:
+    """Lightweight shape wrapper around a precomputed boolean mask.
+
+    Used by the radial-symmetry pipeline to inject rotated copies of a base
+    mask into a :class:`~schematica.shapes.boolean.Union` without going through
+    the full ``Rotated90``/``Translated`` transform chain.
+    """
+
+    __slots__ = ("_mask",)
+
+    def __init__(self, mask: np.ndarray) -> None:
+        self._mask = np.asarray(mask, dtype=bool)
+
+    def mask(self, shape: tuple[int, int, int]) -> np.ndarray:
+        if self._mask.shape != shape:
+            out = np.zeros(shape, dtype=bool)
+            sx, sy, sz = shape
+            msx, msy, msz = self._mask.shape
+            di = min(msx, sx)
+            dj = min(msy, sy)
+            dk = min(msz, sz)
+            out[:di, :dj, :dk] = self._mask[:di, :dj, :dk]
+            return out
+        return self._mask
+
+    def bounds(self, grid_shape: tuple[int, int, int]) -> tuple[int, int, int, int, int, int]:
+        coords = np.where(self._mask)
+        if coords[0].size == 0:
+            return (0, 0, 0, 0, 0, 0)
+        return (int(coords[0].min()), int(coords[1].min()), int(coords[2].min()),
+                int(coords[0].max()), int(coords[1].max()), int(coords[2].max()))
+
+
 @dataclass
 class Session:
     version: str = "1.20.1"
@@ -95,42 +128,111 @@ class Session:
         return replace(shape, **kwargs)
 
     def _with_symmetry(self, shape: Shape) -> Shape:
-        """Wrap ``shape`` with a mirror transform when active symmetry is on.
+        """Wrap ``shape`` with a symmetry transform when active symmetry is on.
 
-        ``_active_symmetry`` is a dict ``{"axis": int, "center": float|None}``.
-        When set, every shape passed to add/subtract/paint is unioned with its
-        mirror image about ``center`` along ``axis`` (or about the grid middle
-        when ``center`` is None). This produces live mirroring without the user
-        having to call ``Mirror``/``Union`` manually each op.
+        ``_active_symmetry`` is a dict. Supported modes:
+
+        * ``{"mode": "mirror", "axis": int, "center": float|None}`` — mirror
+          about a plane perpendicular to ``axis`` at ``center`` (grid middle
+          when ``center`` is None). Classic single-plane mirror.
+        * ``{"mode": "radial", "plane": "xz"|"xy"|"yz", "center": (a, b),
+          "folds": int}`` — rotational cloning around the central column
+          defined by ``center`` in the named plane. ``folds=4`` produces a
+          quad-symmetric build; ``folds=8`` an octo-symmetric one. The shape is
+          unioned with its rotations by ``360/folds`` increments.
+        * ``{"mode": "quad", "center": (a, b)}`` — shorthand for
+          ``radial`` with ``folds=4`` in the horizontal (xz) plane; ideal for
+          arenas, towers and spawns.
         """
         if self._active_symmetry is None:
             return shape
         from ..shapes.boolean import Union
-        from ..shapes.transforms import Mirror, Translated
-        axis = int(self._active_symmetry["axis"])
-        center = self._active_symmetry.get("center")
-        sx, sy, sz = self.grid.shape
-        # Mirror about the grid middle by default.
-        mid = (sx, sy, sz)[axis] / 2.0 - 0.5 if center is None else float(center)
-        # Mirror is a flip about axis, so the mirror of a point p at coordinate
-        # c is 2*mid - p. We achieve this by flipping the mask and then shifting
-        # so that the flip plane is at `mid` rather than the grid centre.
-        # np.flip mirrors about (N-1)/2; offset = round(2*mid - (N-1)).
-        n = (sx, sy, sz)[axis]
-        offset_axis = round(2.0 * mid - (n - 1))
-        # Build the mirrored shape: flip the mask, then translate by offset.
-        # We compose: Translated(Mirror(shape), ...) only along the one axis.
-        mirrored: Shape = Mirror(shape, axis=axis)
-        dx, dy, dz = 0, 0, 0
-        if axis == 0:
-            dx = offset_axis
-        elif axis == 1:
-            dy = offset_axis
-        else:
-            dz = offset_axis
-        if dx or dy or dz:
-            mirrored = Translated(mirrored, dx, dy, dz)
-        return Union((shape, mirrored))
+        from ..shapes.transforms import Mirror, Rotated90, Translated
+        mode = self._active_symmetry.get("mode", "mirror")
+        if mode == "mirror":
+            axis = int(self._active_symmetry["axis"])
+            center = self._active_symmetry.get("center")
+            sx, sy, sz = self.grid.shape
+            mid = (sx, sy, sz)[axis] / 2.0 - 0.5 if center is None else float(center)
+            n = (sx, sy, sz)[axis]
+            offset_axis = round(2.0 * mid - (n - 1))
+            mirrored: Shape = Mirror(shape, axis=axis)
+            dx, dy, dz = 0, 0, 0
+            if axis == 0:
+                dx = offset_axis
+            elif axis == 1:
+                dy = offset_axis
+            else:
+                dz = offset_axis
+            if dx or dy or dz:
+                mirrored = Translated(mirrored, dx, dy, dz)
+            return Union((shape, mirrored))
+        if mode in ("radial", "quad"):
+            plane = self._active_symmetry.get("plane", "xz")
+            if plane == "xz":
+                axes = (0, 2)
+            elif plane == "xy":
+                axes = (0, 1)
+            elif plane == "yz":
+                axes = (1, 2)
+            else:
+                raise ValueError(f"radial symmetry plane must be xz/xy/yz, got {plane!r}")
+            folds = int(self._active_symmetry.get("folds", 4))
+            if folds < 2:
+                raise ValueError("radial symmetry requires folds >= 2")
+            # Centre of rotation in plane coordinates. Default to grid centre.
+            center = self._active_symmetry.get("center")
+            sx, sy, sz = self.grid.shape
+            sa, sb = (sx, sy, sz)[axes[0]], (sx, sy, sz)[axes[1]]
+            if center is None:
+                ca, cb = (sa - 1) / 2.0, (sb - 1) / 2.0
+            else:
+                ca, cb = float(center[0]), float(center[1])
+            # Rotated90 uses np.rot90 which rotates exactly about the array
+            # centre ((N-1)/2, (M-1)/2). When the requested centre equals the
+            # array centre (the default, or an explicit centre that coincides
+            # with it), the rotations are exact and we use the cheap Rotated90
+            # transform pipeline. For offset centres we fall back to an explicit
+            # index map that rotates about (ca, cb), since the
+            # translate->rot90->translate pipeline would round the offset and
+            # drift by half a voxel.
+            axes_str = "".join("x" if a == 0 else "y" if a == 1 else "z"
+                               for a in axes)
+            use_rotated90 = (ca == (sa - 1) / 2.0 and cb == (sb - 1) / 2.0)
+            if use_rotated90:
+                parts: list[Shape] = [shape]
+                for k in range(1, folds):
+                    parts.append(Rotated90(shape, times=k, axes=axes_str))
+                return Union(tuple(parts))
+            # Offset centre: explicit index-map rotation about (ca, cb).
+            base_mask = shape.mask(self.grid.shape)
+            a_idx = np.arange(sa, dtype=np.float32)
+            b_idx = np.arange(sb, dtype=np.float32)
+            ga, gb = np.meshgrid(a_idx, b_idx, indexing="ij")
+            parts = [shape]
+            for k in range(1, folds):
+                theta = 2.0 * np.pi * k / folds
+                da = ga - ca
+                db = gb - cb
+                ra = ca + np.cos(theta) * da - np.sin(theta) * db
+                rb = cb + np.sin(theta) * da + np.cos(theta) * db
+                ia = np.rint(ra).astype(np.int32)
+                ib = np.rint(rb).astype(np.int32)
+                valid = (ia >= 0) & (ia < sa) & (ib >= 0) & (ib < sb)
+                ia_c = np.clip(ia, 0, sa - 1)
+                ib_c = np.clip(ib, 0, sb - 1)
+                rot_mask = np.zeros_like(base_mask)
+                # Gather along the two plane axes for each value of the third axis.
+                third = 3 - axes[0] - axes[1]
+                stk = [slice(None)] * 3
+                for t in range(self.grid.shape[third]):
+                    stk[third] = t
+                    sl = base_mask[tuple(stk)]
+                    gathered = np.where(valid, sl[ia_c, ib_c], False)
+                    rot_mask[tuple(stk)] = gathered
+                parts.append(_MaskShape(rot_mask))
+            return Union(tuple(parts))
+        raise ValueError(f"unknown symmetry mode {mode!r}")
 
     def enable_symmetry(self, axis: int | str, center: float | None = None) -> Session:
         """Enable live mirroring for subsequent add/subtract/paint operations.
@@ -142,11 +244,39 @@ class Session:
         """
         if isinstance(axis, str):
             axis = {"x": 0, "y": 1, "z": 2}[axis]
-        self._active_symmetry = {"axis": int(axis), "center": center}
+        self._active_symmetry = {"mode": "mirror", "axis": int(axis), "center": center}
         return self
 
+    def enable_radial_symmetry(self, folds: int = 4,
+                               plane: str = "xz",
+                               center: tuple[float, float] | None = None) -> Session:
+        """Enable live radial (rotational) symmetry for subsequent operations.
+
+        ``folds`` is the rotational symmetry order (2 = half-turn mirror,
+        4 = quad, 8 = octo). ``plane`` is the rotation plane (``"xz"`` for
+        the horizontal plane, ``"xy"`` or ``"yz"`` for vertical rotations).
+        ``center`` is the rotation centre in plane coordinates; defaults to
+        the grid centre. Every subsequent add/subtract/paint is cloned and
+        rotated about ``center`` by ``360/folds`` degrees.
+        """
+        if folds < 2:
+            raise ValueError("folds must be >= 2")
+        if plane not in ("xz", "xy", "yz"):
+            raise ValueError("plane must be one of xz/xy/yz")
+        self._active_symmetry = {
+            "mode": "radial", "plane": plane, "center": center, "folds": int(folds),
+        }
+        return self
+
+    def enable_quad_symmetry(self, center: tuple[float, float] | None = None) -> Session:
+        """Shorthand for :meth:`enable_radial_symmetry` with ``folds=4`` in the
+        horizontal (xz) plane — the canonical 4-fold rotational clone used for
+        arenas, towers and spawns."""
+        return self.enable_radial_symmetry(folds=4, plane="xz", center=center)
+
     def disable_symmetry(self) -> Session:
-        """Disable the active symmetry mirror set by :meth:`enable_symmetry`."""
+        """Disable the active symmetry (mirror or radial) set by
+        :meth:`enable_symmetry` / :meth:`enable_radial_symmetry`."""
         self._active_symmetry = None
         return self
 

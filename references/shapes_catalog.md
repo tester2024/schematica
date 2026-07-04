@@ -119,6 +119,19 @@ Flip along axis 0/1/2.
 
 ### `Rotated90(shape, times=1, axes="xy"|"xz"|"yz")`
 Rotate by `90*times` degrees. `axes` names the two axes of the rotation plane.
+Implemented via `np.rot90`, so the rotation is exact about the array centre
+`((N-1)/2, (M-1)/2)` for the two named axes; the third axis is left unchanged.
+Used internally by `Session.enable_radial_symmetry` and
+`enable_quad_symmetry` when the rotation centre coincides with the grid
+centre (the default). For an explicit offset centre, the symmetry pipeline
+falls back to an exact index-map rotation.
+
+```python
+from schematica.shapes.primitives import Box
+from schematica.shapes.transforms import Rotated90
+# 90° rotation of a box in the xz plane.
+rot = Rotated90(Box(0, 0, 0, 3, 3, 3), times=1, axes="xz")
+```
 
 ### `Array(shape, count, axis, spacing)`
 Repeat the shape `count` times along `axis` with `spacing` between copies.

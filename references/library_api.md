@@ -198,7 +198,10 @@ blend = SmoothUnion(Sphere(10, 10, 10, 5), Cylinder(10, 10, 5, 0, 10), k=2.0)
 ## `schematica.shapes.transforms`
 - `Translated(shape, dx, dy, dz)` — np.roll based (wraps at grid edges).
 - `Mirror(shape, axis)` — axis 0/1/2.
-- `Rotated90(shape, times=1, axes="xy"|"xz"|"yz")` — 90° multiples.
+- `Rotated90(shape, times=1, axes="xy"|"xz"|"yz")` — 90° multiples via
+  `np.rot90` (exact rotation about the array centre `(N-1)/2`). Used
+  internally by `Session.enable_radial_symmetry` / `enable_quad_symmetry`
+  for the default-centre case.
 - `Rotated(shape, angle_deg=0.0, axes="xy"|"xz"|"yz", order=0)` — arbitrary
   angle rotation via nearest-neighbour resampling.
 - `Array(shape, count, axis, spacing)` — repeat along an axis.
@@ -338,6 +341,20 @@ Wave function collapse over a 3D voxel grid.
   strings ready to feed into `Session.set`.
 - `tileset_mossy_ruins() -> TileSet` — bundled stone/cobblestone/mossy-brick
   tile set for ruined walls.
+- `tileset_medieval_tower() -> TileSet` — stone-brick / cobble / oak-plank /
+  lantern tile set for tower walls and floors.
+- `tileset_modern_office() -> TileSet` — quartz / white-concrete / glass /
+  iron-bars / sea-lantern tile set for modern facades and interiors.
+- `tileset_nether_fortress() -> TileSet` — nether-brick / blackstone / basalt /
+  lava / soul-sand tile set for nether fortresses.
+- `tileset_cherry_grove() -> TileSet` — cherry-plank / pink-terracotta / grass /
+  cherry-leaves tile set for pastel builds.
+- `tileset_ocean_floor() -> TileSet` — prismarine / sea-lantern / sand / gravel
+  / water tile set for underwater ruins.
+- `tileset_by_name(name) -> TileSet` — look up a bundled tileset by name
+  (`"mossy_ruins"`, `"medieval_tower"`, `"modern_office"`, `"nether_fortress"`,
+  `"cherry_grove"`, `"ocean_floor"`). Raises `KeyError` for unknown names.
+- `TILESETS` — registry dict mapping preset name to constructor function name.
 - `tileset_wildcard(tiles) -> TileSet` — build a permissive tileset where
   every tile is compatible with every other (all-`"*` edges). Useful for
   uniform random fills with no real constraints.
@@ -411,6 +428,14 @@ Methods (all return `self` for chaining unless noted):
   when enabled, every subsequent `add`/`subtract`/`paint` is automatically
   unioned with its mirror image about `center` (grid middle by default)
   along `axis` (0/1/2 or "x"/"y"/"z"). `symmetry_active` is a read-only property.
+- `enable_radial_symmetry(folds=4, plane="xz", center=None)`,
+  `enable_quad_symmetry(center=None)` — live rotational cloning: every
+  subsequent `add`/`subtract`/`paint` is unioned with its rotations about
+  `center` (grid middle by default) in the named plane (`"xz"` for horizontal
+  rotation, `"xy"`/`"yz"` for vertical). `folds=4` gives quad symmetry,
+  `folds=8` octo symmetry, `folds=2` a half-turn mirror. For the default
+  centre the rotations use the cheap exact `Rotated90` transform; for an
+  explicit offset centre an exact index-map rotation is used.
 - `resample_subregion(frm, to, new_size, block=..., dest_origin=None) -> int`
   — nearest-neighbour resample of a source box to `new_size`, written at
   `dest_origin` (defaults to `frm`'s min corner).

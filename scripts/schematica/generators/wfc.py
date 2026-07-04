@@ -243,3 +243,124 @@ def tileset_wildcard(tiles: list[str]) -> TileSet:
     constraints but the WFC API.
     """
     return TileSet([Tile(b) for b in tiles])
+
+
+# ---- additional bundled presets ---------------------------------------
+
+def tileset_medieval_tower() -> TileSet:
+    """Stone-brick / cobble / oak-plank / lantern preset for tower walls.
+
+    Edges use a small alphabet: ``s`` stone, ``b`` stone bricks, ``c``
+    cobblestone, ``m`` mossy brick, ``w`` wood plank, ``l`` light. Wood only
+    sits next to wood vertically, so floors read as horizontal bands.
+    """
+    return TileSet([
+        Tile("minecraft:stone_bricks",           ("b", "b", "b", "b", "b", "b")),
+        Tile("minecraft:mossy_stone_bricks",     ("b", "b", "m", "m", "b", "b")),
+        Tile("minecraft:cracked_stone_bricks",   ("b", "b", "b", "b", "b", "b")),
+        Tile("minecraft:cobblestone",            ("c", "c", "c", "c", "c", "c")),
+        Tile("minecraft:mossy_cobblestone",      ("c", "c", "m", "m", "c", "c")),
+        Tile("minecraft:stone",                  ("s", "s", "s", "s", "s", "s")),
+        Tile("minecraft:oak_planks",             ("w", "w", "w", "w", "w", "w")),
+        Tile("minecraft:spruce_planks",          ("w", "w", "w", "w", "w", "w")),
+        Tile("minecraft:lantern",                ("l", "l", "l", "l", "l", "l")),
+    ])
+
+
+def tileset_modern_office() -> TileSet:
+    """Quartz / white-concrete / glass-pane / iron-bare preset for office
+    interiors and modern facades. Edges alphabet: ``q`` quartz, ``c``
+    concrete, ``g`` glass, ``i`` iron, ``l`` light. Glass forms continuous
+    vertical panes; concrete is the default filler; iron frames glass.
+    """
+    return TileSet([
+        Tile("minecraft:quartz_block",           ("q", "q", "q", "q", "q", "q")),
+        Tile("minecraft:smooth_quartz",          ("q", "q", "q", "q", "q", "q")),
+        Tile("minecraft:quartz_pillar",          ("q", "q", "q", "q", "q", "q")),
+        Tile("minecraft:white_concrete",         ("c", "c", "c", "c", "c", "c")),
+        Tile("minecraft:light_gray_concrete",    ("c", "c", "c", "c", "c", "c")),
+        Tile("minecraft:glass",                  ("g", "g", "g", "g", "g", "g")),
+        Tile("minecraft:glass_pane",             ("g", "g", "g", "g", "g", "g")),
+        Tile("minecraft:iron_bars",              ("i", "i", "i", "i", "i", "i")),
+        Tile("minecraft:sea_lantern",            ("l", "l", "l", "l", "l", "l")),
+    ])
+
+
+def tileset_nether_fortress() -> TileSet:
+    """Nether-brick / blackstone / basalt / lava preset for nether fortresses.
+
+    Edges alphabet: ``n`` nether brick, ``b`` blackstone, ``s`` basalt, ``l``
+    lava, ``w`` soul sand/soil. Lava pools only touch lava or soul blocks so
+    the solver carves lava pockets rather than scattering single lava voxels.
+    """
+    return TileSet([
+        Tile("minecraft:nether_bricks",          ("n", "n", "n", "n", "n", "n")),
+        Tile("minecraft:red_nether_bricks",      ("n", "n", "n", "n", "n", "n")),
+        Tile("minecraft:blackstone",             ("b", "b", "b", "b", "b", "b")),
+        Tile("minecraft:basalt",                 ("s", "s", "s", "s", "s", "s")),
+        Tile("minecraft:smooth_basalt",          ("s", "s", "s", "s", "s", "s")),
+        Tile("minecraft:soul_sand",              ("w", "w", "w", "w", "w", "w")),
+        Tile("minecraft:soul_soil",              ("w", "w", "w", "w", "w", "w")),
+        Tile("minecraft:lava",                   ("l", "l", "l", "l", "l", "l")),
+        Tile("minecraft:glowstone",              ("l", "l", "l", "l", "l", "l")),
+    ])
+
+
+def tileset_cherry_grove() -> TileSet:
+    """Cherry-plank / pink-terracotta / grass / cherry-leaf preset for soft
+    pastel builds. Edges alphabet: ``p`` cherry plank, ``t`` terracotta, ``g``
+    grass, ``l`` leaves. Leaves form continuous canopies; planks stack into
+    floor decks.
+    """
+    return TileSet([
+        Tile("minecraft:cherry_planks",          ("p", "p", "p", "p", "p", "p")),
+        Tile("minecraft:cherry_log",             ("p", "p", "p", "p", "p", "p")),
+        Tile("minecraft:pink_terracotta",        ("t", "t", "t", "t", "t", "t")),
+        Tile("minecraft:pink_concrete",          ("t", "t", "t", "t", "t", "t")),
+        Tile("minecraft:grass_block",            ("g", "g", "g", "g", "g", "g")),
+        Tile("minecraft:cherry_leaves",          ("l", "l", "l", "l", "l", "l")),
+        Tile("minecraft:pink_tulip",             ("l", "l", "l", "l", "l", "l")),
+    ])
+
+
+def tileset_ocean_floor() -> TileSet:
+    """Prismarine / sea-lantern / sand / gravel preset for underwater ruins.
+
+    Edges alphabet: ``p`` prismarine, ``b`` prismarine bricks, ``d`` dark
+    prismarine, ``s`` sand, ``g`` gravel, ``l`` sea lantern, ``w`` water.
+    """
+    return TileSet([
+        Tile("minecraft:prismarine",             ("p", "p", "p", "p", "p", "p")),
+        Tile("minecraft:prismarine_bricks",      ("b", "b", "b", "b", "b", "b")),
+        Tile("minecraft:dark_prismarine",        ("d", "d", "d", "d", "d", "d")),
+        Tile("minecraft:sea_lantern",            ("l", "l", "l", "l", "l", "l")),
+        Tile("minecraft:sand",                   ("s", "s", "s", "s", "s", "s")),
+        Tile("minecraft:gravel",                 ("g", "g", "g", "g", "g", "g")),
+        Tile("minecraft:water",                  ("w", "w", "w", "w", "w", "w")),
+    ])
+
+
+#: Registry of all built-in tilesets by name.
+TILESETS: dict[str, str] = {
+    "mossy_ruins": "tileset_mossy_ruins",
+    "medieval_tower": "tileset_medieval_tower",
+    "modern_office": "tileset_modern_office",
+    "nether_fortress": "tileset_nether_fortress",
+    "cherry_grove": "tileset_cherry_grove",
+    "ocean_floor": "tileset_ocean_floor",
+}
+
+
+def tileset_by_name(name: str) -> TileSet:
+    """Look up a bundled tileset by name. Raises ``KeyError`` for unknowns.
+
+    Recognised names: ``mossy_ruins``, ``medieval_tower``, ``modern_office``,
+    ``nether_fortress``, ``cherry_grove``, ``ocean_floor``.
+    """
+    fname = TILESETS.get(name)
+    if fname is None:
+        raise KeyError(
+            f"unknown WFC tileset {name!r}; known: {sorted(TILESETS)}"
+        )
+    fn = globals()[fname]
+    return fn()  # type: ignore[no-any-return]

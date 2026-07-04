@@ -231,20 +231,32 @@ class NoiseDeformed:
         except ImportError:
             return base
         # Build a 3D-ish noise by sampling perlin2d on (x+z, y) planes.
+        # Target ordering is (sx, sy, sz); transpose each planar noise so the
+        # repeat along the missing axis broadcasts cleanly.
         sx, sy, sz = shape
-        n1 = perlin2d((sx, sy), scale=self.scale, seed=self.seed)
-        n2 = perlin2d((sz, sy), scale=self.scale, seed=self.seed + 1)
-        n3 = perlin2d((sx, sz), scale=self.scale, seed=self.seed + 2)
-        # Stack into 3D: average of the three planar noises.
+        n1 = perlin2d((sx, sy), scale=self.scale, seed=self.seed)        # (sx, sy)
+        n2 = perlin2d((sz, sy), scale=self.scale, seed=self.seed + 1)    # (sz, sy)
+        n3 = perlin2d((sx, sz), scale=self.scale, seed=self.seed + 2)    # (sx, sz)
+        # Stack into 3D: average of the three planar noises -> (sx, sy, sz).
         noise = (n1[:, :, None].repeat(sz, axis=2) +
-                 n2[None, :, :].repeat(sx, axis=0) +
+                 n2.T[None, :, :].repeat(sx, axis=0) +     # (sy, sz) -> (sx, sy, sz)
                  n3[:, None, :].repeat(sy, axis=1)) / 3.0
         # noise is in [0,1]; shift to [-0.5, 0.5]
         noise = noise - 0.5
         # Compute distance-from-edge approximation: dilate - erode.
-        from scipy import ndimage as _ndi
-        eroded = _ndi.binary_erosion(base)
-        dilated = _ndi.binary_dilation(base)
+        try:
+            from scipy import ndimage as _ndi
+        except ImportError:
+            # Graceful fallback: numpy-only erosion/dilation via np.roll.
+            eroded = base & np.roll(base, 1, axis=0) & np.roll(base, -1, axis=0) \
+                & np.roll(base, 1, axis=1) & np.roll(base, -1, axis=1) \
+                & np.roll(base, 1, axis=2) & np.roll(base, -1, axis=2)
+            dilated = base | np.roll(base, 1, axis=0) | np.roll(base, -1, axis=0) \
+                | np.roll(base, 1, axis=1) | np.roll(base, -1, axis=1) \
+                | np.roll(base, 1, axis=2) | np.roll(base, -1, axis=2)
+        else:
+            eroded = _ndi.binary_erosion(base)
+            dilated = _ndi.binary_dilation(base)
         edge_inner = base & ~eroded        # voxels that could be removed
         edge_outer = dilated & ~base       # voxels that could be added
         thresh = self.amplitude / 10.0

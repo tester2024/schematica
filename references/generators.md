@@ -54,15 +54,26 @@ apply_tree(s, x=20, z=14, height=5)
 ## Wave function collapse
 
 `schematica.generators.wfc` provides tile-based wave function collapse over
-block palettes. The CLI exposes a `mossy_ruins` tileset and a small wildcard
-tileset:
+block palettes. The CLI exposes the bundled tilesets by name:
 
 ```
 generate.wfc frm=4,1,4 to=12,6,12 tileset=mossy_ruins seed=42
+generate.wfc frm=4,1,4 to=12,6,12 tileset=medieval_tower seed=7
 ```
 
-More templates such as village, temple, tower, and dungeon remain roadmap
-items.
+Six bundled presets are available (looked up via `tileset_by_name(name)`):
+
+| Name | Theme | Key blocks |
+|------|-------|------------|
+| `mossy_ruins` | ruined walls | stone, cobblestone, mossy stone bricks |
+| `medieval_tower` | tower walls + floors | stone bricks, cobblestone, oak planks, lantern |
+| `modern_office` | modern facades / interiors | quartz, white concrete, glass, iron bars, sea lantern |
+| `nether_fortress` | nether builds | nether bricks, blackstone, basalt, lava, soul sand |
+| `cherry_grove` | pastel builds | cherry planks, pink terracotta, grass, cherry leaves |
+| `ocean_floor` | underwater ruins | prismarine, sea lantern, sand, gravel, water |
+
+`tileset_wildcard(tiles)` builds a permissive all-`"*` tileset for uniform
+random fills with no real adjacency constraints.
 
 ## SDF smooth blending (Phase 12)
 
@@ -156,6 +167,38 @@ s.add(Box(0, 0, 0, 3, 3, 3), "minecraft:stone")
 # Both (1,1,1) and (14,1,1) are now stone.
 s.disable_symmetry()
 assert not s.symmetry_active
+```
+
+### Radial / quad symmetry (Phase 13)
+
+`Session.enable_radial_symmetry(folds=4, plane="xz", center=None)` turns on
+live rotational cloning: every subsequent `add` / `subtract` / `paint` is
+unioned with its rotations about `center` (grid middle by default) in the
+named plane (`"xz"` for the horizontal plane, `"xy"` / `"yz"` for vertical
+rotations). `folds=4` produces a quad-symmetric build (arenas, towers,
+spawns); `folds=8` an octo-symmetric one; `folds=2` a half-turn mirror.
+`enable_quad_symmetry(center=None)` is shorthand for
+`enable_radial_symmetry(folds=4, plane="xz", center=center)`. `disable_symmetry()`
+turns off any active symmetry (mirror or radial).
+
+For the default centre the rotations use the cheap exact `Rotated90`
+transform (which rotates about the array centre via `np.rot90`); for an
+explicit offset centre an exact index-map rotation is used so there is no
+half-voxel drift.
+
+```python
+from schematica.session.session import Session
+from schematica.shapes.primitives import Box
+
+s = Session.new((16, 8, 16))
+s.enable_quad_symmetry(center=(7.5, 7.5))
+s.add(Box(0, 0, 7, 3, 4, 9), "minecraft:stone")
+# The box is cloned to all four quadrants by 90° rotation about (7.5, 7.5).
+s.disable_symmetry()
+
+s.enable_radial_symmetry(folds=8, plane="xz")
+s.add(Box(7, 0, 7, 8, 4, 8), "minecraft:stone")  # octo-symmetric column
+s.disable_symmetry()
 ```
 
 ## Subregion resampling (Phase 12)

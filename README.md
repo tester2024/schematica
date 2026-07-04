@@ -148,6 +148,12 @@ Transforms: `Translated, Mirror, Rotated90, Rotated` (any angle, not just 90°),
   decorator. When enabled, every subsequent add/subtract/paint is automatically
   unioned with its mirror image about `center` (grid middle by default) along
   `axis`. `symmetry_active` is a read-only property.
+- `enable_radial_symmetry(folds=4, plane="xz", center=None)` /
+  `enable_quad_symmetry(center=None)`: live rotational cloning. Every
+  subsequent add/subtract/paint is unioned with its rotations about `center`
+  (grid middle by default) in the named plane. `folds=4` → quad, `folds=8` →
+  octo, `folds=2` → half-turn. Uses the exact `Rotated90` transform for the
+  default centre; falls back to an exact index-map rotation for offset centres.
 - `resample_subregion(frm, to, new_size, block, dest_origin=None)`: nearest-
   neighbour rescale of a sub-box to `new_size`, written at `dest_origin`.
 - `set_box` / `set_many`: fast bulk write paths for procedural detail.

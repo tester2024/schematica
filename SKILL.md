@@ -129,6 +129,19 @@ git clone https://github.com/PrismarineJS/minecraft-data minecraft_data
 # or set SCHEMATICA_MINECRAFT_DATA to any minecraft-data clone path
 ```
 
+Alternatively, use the bundled downloader to fetch a single version's
+`blocks.json` on demand (no git clone required, stdlib `urllib` only):
+
+```bash
+python -m schematica.blocks.download 1.20.1          # fetch + cache blocks.json
+python -m schematica.blocks.download --list          # list upstream versions
+python -m schematica.blocks.download 1.20.1 --force   # re-download
+```
+
+The downloader writes to `<cache_root>/data/pc/<version>/` (same layout the
+registry loader searches), so a successful download is immediately visible to
+`BlockRegistry.for_version` without any further setup.
+
 The loader checks `SCHEMATICA_MINECRAFT_DATA`, then `<skill_root>/minecraft_data`,
 then `scripts/minecraft_data`. Without a full catalog it uses a fallback block
 list that covers common structural blocks plus colored wool, stained glass,
@@ -203,7 +216,7 @@ Load these on demand for detailed information:
 `scripts/schematica/` is the toolkit (not a reference doc). Run it; do not read
 it into context unless patching. Key modules:
 
-- `schematica.blocks` — `Block`, `BlockRegistry`, `BlockDef`, `BlockStateSchema`
+- `schematica.blocks` — `Block`, `BlockRegistry`, `BlockDef`, `BlockStateSchema`; `schematica.blocks.download` — on-demand minecraft-data fetcher (`download_version`, `list_available_versions`, CLI `python -m schematica.blocks.download`)
 - `schematica.core` — `VoxelGrid`, `Palette`, `ChunkedGrid` (sparse big-map backend)
 - `schematica.shapes.primitives` — `Box`, `Sphere`, `Ellipsoid`, `Cylinder`, `Cone`, `Pyramid`, `Torus`, `Dome`, `Helix`, `Arch`, `Spiral`, `Staircase`, `Plane`, `Wedge`, `Line`, `BezierCurve` (16 shapes)
 - `schematica.shapes.boolean` — `Union`, `Intersect`, `Subtract`, `Xor`
@@ -212,12 +225,12 @@ it into context unless patching. Key modules:
 - `schematica.shapes.polygon` — `Extrude`, `extrude_polygon` (shapely + SVG path ``d`` strings)
 - `schematica.shapes.mesh` — `MeshShape`, `load_mesh` (trimesh-backed)
 - `schematica.shapes.heightmap` — `Heightmap`, `from_image`
-- `schematica.generators` — `perlin2d`, `fbm2d`, `apply_terrain`, `apply_tree`, `terrain_heightmap`
+- `schematica.generators` — `perlin2d`, `fbm2d`, `apply_terrain`, `apply_tree`, `terrain_heightmap`; `schematica.generators.wfc` — `WFC`, `TileSet`, `run_wfc`, 6 bundled presets (`tileset_mossy_ruins`, `tileset_medieval_tower`, `tileset_modern_office`, `tileset_nether_fortress`, `tileset_cherry_grove`, `tileset_ocean_floor`) + `tileset_by_name` lookup
 - `schematica.render.preview` — `preview` (PNG previews)
 - `schematica.export.sponge` — `write_sponge` (`.schem` writer)
 - `schematica.export.mcedit` — `write_mcedit` (legacy `.schematic` writer)
 - `schematica.export.litematic` — `write_litematic` (`.litematic` writer)
-- `schematica.session` — `Session`, `History`, `CommandSpec` (40+ commands); Session supports `enable_symmetry`/`disable_symmetry` (live mirror) and `resample_subregion` (scale a sub-box to a new size).
+- `schematica.session` — `Session`, `History`, `CommandSpec` (40+ commands); Session supports `enable_symmetry`/`disable_symmetry` (live mirror), `enable_radial_symmetry`/`enable_quad_symmetry` (live rotational cloning via `Rotated90`), and `resample_subregion` (scale a sub-box to a new size).
 - `schematica.cli.repl` — `dispatch`, `run_script`, `repl_main`
 - `schematica.cli.validation` — `CheckResult` + 29 `check_*` functions
 

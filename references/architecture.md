@@ -98,8 +98,10 @@ under `scripts/`. All paths below are relative to the skill root unless noted.
 
 ### Session
 - Holds `version, grid, palette, history, metadata, registry` and an optional
-  `_active_symmetry` dict (`{"axis": int, "center": float | None}`) used by the
-  live mirror decorator.
+  `_active_symmetry` dict used by the live mirror / radial decorators.
+  Recognised modes: `{"mode":"mirror","axis":int,"center":float|None}`,
+  `{"mode":"radial","plane":"xz"|"xy"|"yz","center":(a,b)|None,"folds":int}`,
+  `{"mode":"quad","center":(a,b)|None}` (shorthand for radial folds=4 plane=xz).
 - `new(shape, version, fill)`, `add/subtract/intersect/paint/replace`. The four
   shape-accepting methods accept `**shape_kwargs` which are forwarded to the
   shape's dataclass fields via `dataclasses.replace` — so
@@ -109,6 +111,12 @@ under `scripts/`. All paths below are relative to the skill root unless noted.
   every subsequent `add`/`subtract`/`paint` is automatically unioned with its
   mirror image about `center` (grid middle by default) along `axis`. The
   `symmetry_active` property reflects state.
+- `enable_radial_symmetry(folds=4, plane="xz", center=None)` /
+  `enable_quad_symmetry(center=None)`: when enabled, every subsequent
+  `add`/`subtract`/`paint` is unioned with its rotations about `center` in the
+  named plane. For the default centre (grid middle) the rotations use the exact
+  `Rotated90` transform; for an explicit offset centre an exact index-map
+  rotation is used. `disable_symmetry()` turns off any active symmetry.
 - `resample_subregion(frm, to, new_size, block, dest_origin=None)`: nearest-
   neighbour rescale of a sub-box to `new_size`, written at `dest_origin`.
 - `transform_rotate/mirror` reshape the grid (no history delta for shape change).

@@ -77,6 +77,15 @@ covered by tests in `tests/test_sdf.py` and `tests/test_review_fixes.py`.
   decorator. Every subsequent `add`/`subtract`/`paint` is auto-unioned with its
   mirror image about `center` (grid middle by default) along `axis`. The
   `symmetry_active` property reflects state. (test_enable_symmetry_*)
+- `enable_radial_symmetry(folds=4, plane="xz", center=None)` /
+  `enable_quad_symmetry(center=None)` / `disable_symmetry()` — live radial
+  (rotational) cloning. Every subsequent `add`/`subtract`/`paint` is
+  auto-unioned with its rotations about `center` in the named plane.
+  `folds=4` → quad, `folds=8` → octo, `folds=2` → half-turn. For the default
+  centre the rotations use the exact `Rotated90` transform (np.rot90 about the
+  array centre); for an explicit offset centre an exact index-map rotation is
+  used so there is no half-voxel drift. (test_enable_quad_symmetry_*,
+  test_enable_radial_symmetry_*, test_radial_symmetry_*)
 - `resample_subregion(frm, to, new_size, block, dest_origin=None)` — nearest-
   neighbour rescale of a sub-box, written at `dest_origin`. Supports upscaling
   and downscaling. (test_resample_subregion_*)

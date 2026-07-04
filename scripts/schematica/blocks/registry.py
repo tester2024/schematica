@@ -425,6 +425,176 @@ for _color in _FALLBACK_COLORS:
     })
     _next_fallback_id += 1
 
+# --- Wood decorative families (spruce, birch, jungle, acacia, dark_oak,
+#     mangrove, cherry, bamboo, crimson, warped) fences, slabs, stairs, gates,
+#     trapdoors, doors, buttons, pressure plates, signs and walls ---------------
+# These cover the modern decorative wood families absent from the original
+# fallback catalog so builds do not fall back to oak for every wood type.
+_WOOD_TYPES = (
+    "spruce", "birch", "jungle", "acacia", "dark_oak",
+    "mangrove", "cherry", "bamboo", "crimson", "warped",
+)
+_WOOD_FAMILY: list[dict[str, object]] = []
+for _wood in _WOOD_TYPES:
+    _display_wood = _wood.replace("_", " ").title()
+    _WOOD_FAMILY.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_wood}_fence",
+        "displayName": f"{_display_wood} Fence",
+        "states": _FENCE_STATES,
+    })
+    _next_fallback_id += 1
+    _WOOD_FAMILY.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_wood}_fence_gate",
+        "displayName": f"{_display_wood} Fence Gate",
+        "states": _FENCE_GATE_STATES,
+    })
+    _next_fallback_id += 1
+    _WOOD_FAMILY.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_wood}_slab",
+        "displayName": f"{_display_wood} Slab",
+        "states": _SLAB_STATES,
+    })
+    _next_fallback_id += 1
+    _WOOD_FAMILY.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_wood}_stairs",
+        "displayName": f"{_display_wood} Stairs",
+        "states": _STAIRS_STATES,
+    })
+    _next_fallback_id += 1
+    _WOOD_FAMILY.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_wood}_trapdoor",
+        "displayName": f"{_display_wood} Trapdoor",
+        "states": _TRAPDOOR_STATES,
+    })
+    _next_fallback_id += 1
+    _WOOD_FAMILY.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_wood}_door",
+        "displayName": f"{_display_wood} Door",
+        "states": _DOOR_STATES,
+    })
+    _next_fallback_id += 1
+    _WOOD_FAMILY.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_wood}_sign",
+        "displayName": f"{_display_wood} Sign",
+        "states": [{"name": "rotation", "type": "int", "default": 0, "values": list(range(16))},
+                   _WATERLOGGED_STATE],
+    })
+    _next_fallback_id += 1
+    _WOOD_FAMILY.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_wood}_wall_sign",
+        "displayName": f"{_display_wood} Wall Sign",
+        "states": [_FACING_STATE, _WATERLOGGED_STATE],
+    })
+    _next_fallback_id += 1
+    _WOOD_FAMILY.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_wood}_button",
+        "displayName": f"{_display_wood} Button",
+        "states": [_FACING_STATE, {"name": "powered", "type": "bool", "default": False},
+                   _WATERLOGGED_STATE],
+    })
+    _next_fallback_id += 1
+    _WOOD_FAMILY.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_wood}_pressure_plate",
+        "displayName": f"{_display_wood} Pressure Plate",
+        "states": [{"name": "powered", "type": "bool", "default": False}],
+    })
+    _next_fallback_id += 1
+_FALLBACK_EXTRA_BLOCKS.extend(_WOOD_FAMILY)
+
+# --- Copper block family ----------------------------------------------------
+# Modern industrial builds use copper and its oxidation stages. Each variant
+# has a non-oxidized, exposed, weathered and oxidized form plus waxed variants.
+# Blockstate: `age` ∈ {0,1,2,3} for untreated copper; waxed variants lack age.
+_COPPER_BASES = (
+    "copper_block", "exposed_copper", "weathered_copper", "oxidized_copper",
+    "cut_copper", "exposed_cut_copper", "weathered_cut_copper",
+    "oxidized_cut_copper",
+)
+_COPPER_SLAB_STAIR_BASES = (
+    "cut_copper", "exposed_cut_copper", "weathered_cut_copper",
+    "oxidized_cut_copper",
+)
+_COPPER_FAMILY: list[dict[str, object]] = []
+_AGE_STATE = {"name": "age", "type": "int", "values": [0, 1, 2, 3], "default": 0}
+for _base in _COPPER_BASES:
+    _COPPER_FAMILY.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_base}",
+        "displayName": _base.replace("_", " ").title(),
+    })
+    _next_fallback_id += 1
+for _base in _COPPER_SLAB_STAIR_BASES:
+    _COPPER_FAMILY.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_base}_slab",
+        "displayName": f"{_base.replace('_', ' ').title()} Slab",
+        "states": _SLAB_STATES,
+    })
+    _next_fallback_id += 1
+    _COPPER_FAMILY.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_base}_stairs",
+        "displayName": f"{_base.replace('_', ' ').title()} Stairs",
+        "states": _STAIRS_STATES,
+    })
+    _next_fallback_id += 1
+# Waxed copper variants (no age progression).
+_WAXED_COPPER_BASES = (
+    "waxed_copper_block", "waxed_exposed_copper", "waxed_weathered_copper",
+    "waxed_oxidized_copper", "waxed_cut_copper", "waxed_exposed_cut_copper",
+    "waxed_weathered_cut_copper", "waxed_oxidized_cut_copper",
+)
+for _base in _WAXED_COPPER_BASES:
+    _COPPER_FAMILY.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_base}",
+        "displayName": _base.replace("_", " ").title(),
+    })
+    _next_fallback_id += 1
+for _base in (
+    "waxed_cut_copper", "waxed_exposed_cut_copper",
+    "waxed_weathered_cut_copper", "waxed_oxidized_cut_copper",
+):
+    _COPPER_FAMILY.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_base}_slab",
+        "displayName": f"{_base.replace('_', ' ').title()} Slab",
+        "states": _SLAB_STATES,
+    })
+    _next_fallback_id += 1
+    _COPPER_FAMILY.append({
+        "id": _next_fallback_id,
+        "name": f"minecraft:{_base}_stairs",
+        "displayName": f"{_base.replace('_', ' ').title()} Stairs",
+        "states": _STAIRS_STATES,
+    })
+    _next_fallback_id += 1
+# Raw copper block and chiseled / raw copper variants for industrial builds.
+_COPPER_FAMILY.extend([
+    {"id": _next_fallback_id, "name": "minecraft:raw_copper_block",
+     "displayName": "Block of Raw Copper"},
+    {"id": _next_fallback_id + 1, "name": "minecraft:chiseled_copper",
+     "displayName": "Chiseled Copper"},
+    {"id": _next_fallback_id + 2, "name": "minecraft:copper_grate",
+     "displayName": "Copper Grate"},
+    {"id": _next_fallback_id + 3, "name": "minecraft:copper_bulb",
+     "displayName": "Copper Bulb",
+     "states": [{"name": "lit", "type": "bool", "default": False},
+                {"name": "powered", "type": "bool", "default": False}]},
+])
+_next_fallback_id += 4
+_FALLBACK_EXTRA_BLOCKS.extend(_COPPER_FAMILY)
+
 _FALLBACK_BLOCKS.extend(_FALLBACK_EXTRA_BLOCKS)
 
 

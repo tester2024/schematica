@@ -21,13 +21,23 @@ class MeshShape:
         m.apply_scale(self.scale)
         ox, oy, oz = self.origin
         m.apply_translation((ox, oy, oz))
-        # Use trimesh voxelization aligned to grid cells.
-        vg = trimesh.voxelize.VoxelGrid(m, pitch=1.0)  # type: ignore[attr-defined]
-        # vg.matrix is (nx, ny, nz) bool with origin vg.origin
-        mat = vg.matrix
-        o = vg.origin
+        # Voxelise the mesh at pitch=1. trimesh 4.x exposes
+        # ``mesh.voxelized(pitch=...)`` returning a VoxelGrid; older versions
+        # exposed ``trimesh.voxelize.VoxelGrid(mesh, pitch=...)``. Support both.
+        if hasattr(m, "voxelized"):
+            vg = m.voxelized(pitch=1.0)
+        else:  # pragma: no cover - legacy trimesh fallback
+            vg = trimesh.voxelize.VoxelGrid(m, pitch=1.0)  # type: ignore[attr-defined]
+        mat = np.asarray(vg.matrix, dtype=bool)
+        # Origin of the voxel grid in world coordinates.
+        if hasattr(vg, "translation"):
+            o = np.asarray(vg.translation, dtype=float)
+        elif hasattr(vg, "origin"):  # pragma: no cover - legacy
+            o = np.asarray(vg.origin, dtype=float)
+        else:
+            o = np.zeros(3, dtype=float)
         out = np.zeros(shape, dtype=bool)
-        # Place matrix into out at floor(origin)
+        # Place matrix into out at floor(origin).
         ox0 = int(np.floor(o[0]))
         oy0 = int(np.floor(o[1]))
         oz0 = int(np.floor(o[2]))

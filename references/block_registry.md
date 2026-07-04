@@ -13,7 +13,20 @@
 2. **`SCHEMATICA_MINECRAFT_DATA` env var**: point to any minecraft-data clone.
    `BlockRegistry.for_version` checks this env var first.
 
-3. **Built-in fallback catalog** (when neither of the above exists): a compact
+3. **On-demand downloader** (`schematica.blocks.download`): fetches a single
+   version's `blocks.json` + `version.json` from the PrismarineJS GitHub raw
+   endpoint and caches them under `<cache_root>/data/pc/<version>/` (same
+   layout the loader searches). No git clone required; uses stdlib `urllib`
+   only. CLI:
+   ```
+   python -m schematica.blocks.download 1.20.1          # fetch + cache
+   python -m schematica.blocks.download --list          # list upstream versions
+   python -m schematica.blocks.download 1.20.1 --force   # re-download
+   ```
+   Python API: `download_version(version, *, cache_root=None, force=False)`,
+   `list_available_versions()`, `is_version_cached(version, cache_root=None)`.
+
+4. **Built-in fallback catalog** (when none of the above exists): a compact
    hardcoded list in `scripts/schematica/blocks/registry.py::_FALLBACK_BLOCKS`.
    Always importable; never throws on missing data.
 
