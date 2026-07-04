@@ -8,7 +8,6 @@ from schematica.generators.wfc import (
     Tile,
     TileSet,
     run_wfc,
-    tileset_mossy_ruins,
     tileset_wildcard,
 )
 
@@ -49,13 +48,20 @@ def test_run_wfc_wildcard_converges():
             assert blocks[x, y, 0] in ("minecraft:stone", "minecraft:dirt", "minecraft:cobblestone")
 
 
-def test_run_wfc_mossy_ruins_converges():
-    ts = tileset_mossy_ruins()
+def test_run_wfc_custom_tileset_converges():
+    ts = TileSet([
+        Tile("minecraft:stone", ("wall", "wall", "*", "*", "wall", "wall")),
+        Tile("minecraft:cobblestone", ("wall", "wall", "*", "*", "wall", "wall")),
+        Tile("minecraft:mossy_cobblestone", ("wall", "wall", "*", "*", "wall", "wall")),
+    ])
     blocks = run_wfc((6, 6, 1), ts, seed=42)
     assert blocks.shape == (6, 6, 1)
     flat = blocks.ravel().tolist()
-    # Should have placed at least 2 distinct block types.
-    assert len(set(flat)) >= 2
+    assert set(flat) <= {
+        "minecraft:stone",
+        "minecraft:cobblestone",
+        "minecraft:mossy_cobblestone",
+    }
 
 
 def test_run_wfc_3d_shape():

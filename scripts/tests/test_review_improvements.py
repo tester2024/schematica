@@ -5,8 +5,7 @@
 - Expanded fallback block registry (wood families + copper families)
 - Radial / quad symmetry (enable_radial_symmetry, enable_quad_symmetry)
 - minecraft-data downloader utility (mocked)
-- New WFC presets (medieval_tower, modern_office, nether_fortress,
-  cherry_grove, ocean_floor, tileset_by_name)
+- WFC generated palettes without bundled presets
 """
 from __future__ import annotations
 
@@ -178,69 +177,26 @@ def test_radial_symmetry_with_offset_center():
     assert rotated == coords
 
 
-# ---- WFC presets ----------------------------------------------------------
+# ---- WFC generated palettes ----------------------------------------------
 
-@pytest.mark.parametrize("name", [
-    "mossy_ruins", "medieval_tower", "modern_office", "nether_fortress",
-    "cherry_grove", "ocean_floor",
-])
-def test_tileset_by_name_returns_nonempty(name):
-    from schematica.generators.wfc import tileset_by_name
-    ts = tileset_by_name(name)
-    assert len(ts) >= 3
+def test_wfc_uses_caller_supplied_palette():
+    from schematica.generators.wfc import run_wfc, tileset_wildcard
 
-
-def test_tileset_by_name_unknown_raises():
-    from schematica.generators.wfc import tileset_by_name
-    with pytest.raises(KeyError, match="unknown WFC tileset"):
-        tileset_by_name("does_not_exist")
-
-
-def test_tilesets_registry_lists_all_presets():
-    from schematica.generators.wfc import TILESETS
-    assert set(TILESETS) == {
-        "mossy_ruins", "medieval_tower", "modern_office",
-        "nether_fortress", "cherry_grove", "ocean_floor",
-    }
-
-
-def test_run_wfc_with_modern_office_collapses():
-    from schematica.generators.wfc import run_wfc, tileset_by_name
-    out = run_wfc((4, 4, 2), tileset_by_name("modern_office"), seed=42)
+    palette = [
+        "minecraft:stone",
+        "minecraft:cobblestone",
+        "minecraft:mossy_cobblestone",
+    ]
+    out = run_wfc((4, 4, 2), tileset_wildcard(palette), seed=42)
     assert out.shape == (4, 4, 2)
-    # Every cell should be a non-empty block string.
-    for x in range(4):
-        for y in range(4):
-            for z in range(2):
-                assert isinstance(out[x, y, z], str)
-                assert out[x, y, z].startswith("minecraft:")
+    assert set(out.ravel().tolist()) <= set(palette)
 
 
-def test_medieval_tower_contains_oak_and_stone():
-    from schematica.generators.wfc import tileset_by_name
-    blocks = {t.block for t in tileset_by_name("medieval_tower").tiles}
-    assert "minecraft:stone_bricks" in blocks
-    assert "minecraft:oak_planks" in blocks
+def test_wfc_does_not_export_named_preset_registry():
+    import schematica.generators.wfc as wfc
 
-
-def test_nether_fortress_contains_nether_bricks():
-    from schematica.generators.wfc import tileset_by_name
-    blocks = {t.block for t in tileset_by_name("nether_fortress").tiles}
-    assert "minecraft:nether_bricks" in blocks
-    assert "minecraft:lava" in blocks
-
-
-def test_cherry_grove_contains_cherry_planks():
-    from schematica.generators.wfc import tileset_by_name
-    blocks = {t.block for t in tileset_by_name("cherry_grove").tiles}
-    assert "minecraft:cherry_planks" in blocks
-
-
-def test_ocean_floor_contains_prismarine():
-    from schematica.generators.wfc import tileset_by_name
-    blocks = {t.block for t in tileset_by_name("ocean_floor").tiles}
-    assert "minecraft:prismarine" in blocks
-    assert "minecraft:sea_lantern" in blocks
+    assert not hasattr(wfc, "TILESETS")
+    assert not hasattr(wfc, "tileset_by_name")
 
 
 # ---- download utility (mocked, no network) --------------------------------
