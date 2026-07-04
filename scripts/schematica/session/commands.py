@@ -420,7 +420,7 @@ def cmd_preview_region(s: Session, corner_x: int, corner_y: int, corner_z: int,
 
 
 def cmd_report(s: Session) -> str:
-    from ..export.report import palette_report, format_report
+    from ..export.report import format_report, palette_report
     rep = palette_report(s.grid)
     return format_report(rep) + " | unknown=" + str(rep["unknown_blocks"]) + " mcedit=" + str(rep["mcedit_unmapped"])
 
@@ -516,8 +516,15 @@ def cmd_apply_substitutions(s: Session) -> str:
 def cmd_constraint_add(s: Session, kind: str, a: str = "", b: str = "",
                        c: str = "", d: str = "", e: str = "") -> str:
     from ..constraints import (
-        HeightLimit, BlockBan, BlockAllowlist, Symmetry, BoxBounds,
-        MaxBlockCount, PaletteLimit, SolidRatio, ConstraintSet,
+        BlockAllowlist,
+        BlockBan,
+        BoxBounds,
+        ConstraintSet,
+        HeightLimit,
+        MaxBlockCount,
+        PaletteLimit,
+        SolidRatio,
+        Symmetry,
     )
     cs = s.metadata.setdefault("constraints", ConstraintSet())
     if kind == "height":

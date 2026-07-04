@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, is_dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +37,7 @@ class Session:
     history: History = field(default_factory=History)
     metadata: dict[str, Any] = field(default_factory=dict)
     registry: BlockRegistry | None = field(default=None)
+    _active_symmetry: dict[str, Any] | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if self.registry is None:
@@ -65,6 +66,94 @@ class Session:
         assert self.registry is not None
         return self.registry.resolve(block)
 
+    # ---- shape kwargs delegation ----------------------------------------
+
+    @staticmethod
+    def _apply_shape_kwargs(shape: Shape, **kwargs: Any) -> Shape:
+        """Forward unknown kwargs to a frozen dataclass shape's fields.
+
+        This fixes the ``s.add(Sphere(...), "block", hollow=True)`` trap: any
+        kwarg that names a field on the shape's dataclass is applied via
+        ``dataclasses.replace``; unknown kwargs raise ``TypeError`` so the
+        caller learns the shape does not accept them (instead of the session
+        silently dropping them or erroring with a confusing message).
+        """
+        if not kwargs:
+            return shape
+        if not is_dataclass(shape):
+            raise TypeError(
+                f"shape {type(shape).__name__} is not a dataclass; cannot apply "
+                f"kwargs {sorted(kwargs)}"
+            )
+        valid = {f.name for f in fields(shape)}
+        unknown = [k for k in kwargs if k not in valid]
+        if unknown:
+            raise TypeError(
+                f"shape {type(shape).__name__} does not accept keyword argument(s) "
+                f"{unknown!r}; valid fields: {sorted(valid)}"
+            )
+        return replace(shape, **kwargs)
+
+    def _with_symmetry(self, shape: Shape) -> Shape:
+        """Wrap ``shape`` with a mirror transform when active symmetry is on.
+
+        ``_active_symmetry`` is a dict ``{"axis": int, "center": float|None}``.
+        When set, every shape passed to add/subtract/paint is unioned with its
+        mirror image about ``center`` along ``axis`` (or about the grid middle
+        when ``center`` is None). This produces live mirroring without the user
+        having to call ``Mirror``/``Union`` manually each op.
+        """
+        if self._active_symmetry is None:
+            return shape
+        from ..shapes.boolean import Union
+        from ..shapes.transforms import Mirror, Translated
+        axis = int(self._active_symmetry["axis"])
+        center = self._active_symmetry.get("center")
+        sx, sy, sz = self.grid.shape
+        # Mirror about the grid middle by default.
+        mid = (sx, sy, sz)[axis] / 2.0 - 0.5 if center is None else float(center)
+        # Mirror is a flip about axis, so the mirror of a point p at coordinate
+        # c is 2*mid - p. We achieve this by flipping the mask and then shifting
+        # so that the flip plane is at `mid` rather than the grid centre.
+        # np.flip mirrors about (N-1)/2; offset = round(2*mid - (N-1)).
+        n = (sx, sy, sz)[axis]
+        offset_axis = round(2.0 * mid - (n - 1))
+        # Build the mirrored shape: flip the mask, then translate by offset.
+        # We compose: Translated(Mirror(shape), ...) only along the one axis.
+        mirrored: Shape = Mirror(shape, axis=axis)
+        dx, dy, dz = 0, 0, 0
+        if axis == 0:
+            dx = offset_axis
+        elif axis == 1:
+            dy = offset_axis
+        else:
+            dz = offset_axis
+        if dx or dy or dz:
+            mirrored = Translated(mirrored, dx, dy, dz)
+        return Union((shape, mirrored))
+
+    def enable_symmetry(self, axis: int | str, center: float | None = None) -> Session:
+        """Enable live mirroring for subsequent add/subtract/paint operations.
+
+        ``axis`` is 0/1/2 or ``"x"``/``"y"``/``"z"``. ``center`` is the world
+        coordinate of the mirror plane along that axis; when ``None`` the
+        plane is the grid middle. All subsequent shape operations are
+        automatically mirrored in real time.
+        """
+        if isinstance(axis, str):
+            axis = {"x": 0, "y": 1, "z": 2}[axis]
+        self._active_symmetry = {"axis": int(axis), "center": center}
+        return self
+
+    def disable_symmetry(self) -> Session:
+        """Disable the active symmetry mirror set by :meth:`enable_symmetry`."""
+        self._active_symmetry = None
+        return self
+
+    @property
+    def symmetry_active(self) -> bool:
+        return self._active_symmetry is not None
+
     # ---- history ---------------------------------------------------------
 
     @property
@@ -92,7 +181,10 @@ class Session:
 
     # ---- add / subtract / paint (backend-aware) -------------------------
 
-    def add(self, shape: Shape, block: Block | str = "minecraft:stone") -> Session:
+    def add(self, shape: Shape, block: Block | str = "minecraft:stone",
+            **shape_kwargs: Any) -> Session:
+        shape = self._apply_shape_kwargs(shape, **shape_kwargs)
+        shape = self._with_symmetry(shape)
         b = self._resolve(block)
         idx = self.grid.palette.add(b)
         if self.is_chunked:
@@ -105,7 +197,9 @@ class Session:
             self._record(new)
         return self
 
-    def subtract(self, shape: Shape) -> Session:
+    def subtract(self, shape: Shape, **shape_kwargs: Any) -> Session:
+        shape = self._apply_shape_kwargs(shape, **shape_kwargs)
+        shape = self._with_symmetry(shape)
         if self.is_chunked:
             self._apply_chunked(shape, 0, paint_only=False, erase=True)
         else:
@@ -116,7 +210,10 @@ class Session:
             self._record(new)
         return self
 
-    def intersect(self, shape: Shape, block: Block | str) -> Session:
+    def intersect(self, shape: Shape, block: Block | str,
+                  **shape_kwargs: Any) -> Session:
+        shape = self._apply_shape_kwargs(shape, **shape_kwargs)
+        shape = self._with_symmetry(shape)
         b = self._resolve(block)
         idx = self.grid.palette.add(b)
         if self.is_chunked:
@@ -131,7 +228,10 @@ class Session:
             self._record(new)
         return self
 
-    def paint(self, shape: Shape, block: Block | str) -> Session:
+    def paint(self, shape: Shape, block: Block | str,
+              **shape_kwargs: Any) -> Session:
+        shape = self._apply_shape_kwargs(shape, **shape_kwargs)
+        shape = self._with_symmetry(shape)
         b = self._resolve(block)
         idx = self.grid.palette.add(b)
         if self.is_chunked:
@@ -669,7 +769,6 @@ class Session:
                        blend: float = 0.0, seed: int = 0) -> int:
         """Paint a linear gradient of blocks along an axis. Returns voxels painted."""
         from ..procedural.detail import paint_gradient as _pg
-        old = self._dense.data.copy() if not self.is_chunked else None
         n = _pg(self.grid, frm, to, blocks, axis=axis, blend=blend, seed=seed)
         if not self.is_chunked and n > 0:
             self._record(self.grid.data.copy())
@@ -726,6 +825,68 @@ class Session:
         """BFS shortest walking path from a to b. Returns list or None."""
         from ..analysis.spatial import shortest_path as _sp
         return _sp(self.grid, a, b)
+
+    # ---- resampling / scaling ------------------------------------------
+
+    def resample_subregion(self, frm: tuple[int, int, int],
+                           to: tuple[int, int, int],
+                           new_size: tuple[int, int, int],
+                           *, block: Block | str = "minecraft:stone",
+                           order: int = 0,
+                           dest_origin: tuple[int, int, int] | None = None) -> int:
+        """Resize a sub-region of the grid to ``new_size`` and write it back.
+
+        The source box ``[frm, to]`` (inclusive) is resampled to
+        ``new_size`` using nearest-neighbour (``order=0``) or bilinear
+        (``order=1``) interpolation, then written back at
+        ``dest_origin`` (defaults to ``frm``'s min corner) with the given
+        ``block`` for non-air voxels. Useful for scaling a detailed $10^3$
+        pillar to a $15^3$ space, or shrinking a build into a thumbnail.
+        Returns the number of voxels written.
+        """
+        x0, y0, z0 = frm
+        x1, y1, z1 = to
+        x0, x1 = min(x0, x1), max(x0, x1)
+        y0, y1 = min(y0, y1), max(y0, y1)
+        z0, z1 = min(z0, z1), max(z0, z1)
+        src_w, src_h, src_d = x1 - x0 + 1, y1 - y0 + 1, z1 - z0 + 1
+        dst_w, dst_h, dst_d = new_size
+        if src_w <= 0 or src_h <= 0 or src_d <= 0:
+            return 0
+        if dst_w <= 0 or dst_h <= 0 or dst_d <= 0:
+            return 0
+        dx0, dy0, dz0 = dest_origin if dest_origin is not None else (x0, y0, z0)
+        # Sample the source solid-mask (binary) at the destination resolution.
+        # Map dst index -> src index: src = floor(dst * src_size / dst_size).
+        sample = np.zeros((dst_w, dst_h, dst_d), dtype=bool)
+        for dx in range(dst_w):
+            sx = int(np.floor(dx * src_w / dst_w))
+            for dy in range(dst_h):
+                sy = int(np.floor(dy * src_h / dst_h))
+                for dz in range(dst_d):
+                    sz = int(np.floor(dz * src_d / dst_d))
+                    val = _raw_index_at(self.grid, x0 + sx, y0 + sy, z0 + sz)
+                    sample[dx, dy, dz] = val != 0
+        # Write the resampled mask back at the destination origin, clipped to grid.
+        gx, gy, gz = self.grid.shape
+        coords: list[tuple[int, int, int]] = []
+        for dx in range(dst_w):
+            wx = dx0 + dx
+            if wx < 0 or wx >= gx:
+                continue
+            for dy in range(dst_h):
+                wy = dy0 + dy
+                if wy < 0 or wy >= gy:
+                    continue
+                for dz in range(dst_d):
+                    wz = dz0 + dz
+                    if wz < 0 or wz >= gz:
+                        continue
+                    if sample[dx, dy, dz]:
+                        coords.append((wx, wy, wz))
+        if coords:
+            return self.set_many(coords, block, history=True)
+        return 0
 
 
 def _eval_shape_subgrid(shape: Shape, grid_shape: tuple[int, int, int],
