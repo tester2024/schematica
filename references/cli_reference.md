@@ -33,7 +33,7 @@ In the REPL, type `help` to list commands, `exit` to quit.
 | `add.hbox` | `frm`, `to`, `block`=`minecraft:stone` | | hollow box (walls only) |
 | `add.sphere` | `center`, `r`, `block`=`minecraft:stone`, `hollow`=`false` | | |
 | `add.hsphere` | `center`, `r`, `block`=`minecraft:stone` | | hollow sphere (shell only) |
-| `add.cylinder` | `center`, `r`, `h`, `block`=`minecraft:stone`, `hollow`=`false` | | vertical (y) |
+| `add.cylinder` | `center`, `r`, `h`, `block`=`minecraft:stone`, `hollow`=`false` | | vertical (y); for `axis="x"\|"z"` use Python with `start`/`end` |
 | `add.hcylinder` | `center`, `r`, `h`, `block`=`minecraft:stone` | | hollow cylinder (tube only) |
 | `add.dome` | `center`, `r`, `block`=`minecraft:stone`, `hollow`=`false` | | upper hemisphere |
 | `add.hdome` | `center`, `r`, `block`=`minecraft:stone` | | hollow dome (shell only) |
@@ -101,6 +101,28 @@ In the REPL, type `help` to list commands, `exit` to quit.
 | `path` | `a`, `b` | | shortest walking path |
 | `help` | | | list commands (REPL only) |
 | `exit` | | | quit (REPL only) |
+
+## Python-only features (not in the CLI table)
+
+The CLI is a thin shell over the Session API. These Phase 12 additions are only
+reachable from Python because they need shapes or composition the command
+table cannot express. See `references/workflow_guide.md` for recipes and
+`references/generators.md` for the SDF/Bezier/SVG/symmetry/resample reference.
+
+- `SmoothUnion` / `SmoothIntersect` / `SmoothSubtract` — SDF smooth blending.
+- `BezierCurve` — quadratic / cubic 3D Bezier tubes.
+- `Rotated(angle_deg=...)` — arbitrary-angle rotation (not just 90° multiples).
+- `extrude_polygon("M 0 0 H 10 V 10 H 0 Z", ...)` — SVG path `d`-string voxelization.
+- `Session.enable_symmetry(axis, center)` / `disable_symmetry()` — live mirror.
+- `Session.resample_subregion(frm, to, new_size, block, dest_origin=None)`.
+- `Cone(..., axis="x"|"z")` and `Dome(..., axis="x"|"z")` — horizontal cones /
+  wall-mounted domes (the CLI's `add.cone` / `add.dome` are Y-axis only).
+- `Arch(..., plane="xy"|"xz"|"yz")` — arches in any coordinate plane (the CLI's
+  `add.arch` is XY-plane only).
+- `Cylinder(..., start=..., end=..., axis="x"|"z")` — clearer along-axis extent
+  for non-Y cylinders (the CLI's `add.cylinder` is Y-axis only).
+- `Session.add(shape, block, hollow=True, ...)` — kwargs delegation forwards
+  extra kwargs to the shape's dataclass fields via `dataclasses.replace`.
 
 ## Examples
 

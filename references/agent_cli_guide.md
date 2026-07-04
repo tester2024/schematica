@@ -271,6 +271,13 @@ and concrete. Only `oak_log` has a state (`axis`, default `y`) in fallback
 mode, so state-heavy blocks like stairs, doors, slabs, fences, and waterlogged
 variants still need the full minecraft-data catalog.
 
+Phase 12 enriched the fallback with the quartz family (smooth quartz, quartz
+pillar, chiseled quartz, quartz slab/stairs, smooth quartz slab/stairs),
+concrete slabs and stairs for all 16 colors, and ~40 stone-variant slabs/stairs
+(deepslate, tuff, calcite, blackstone, prismarine, end stone brick, mossy
+stone brick/cobblestone, granite, diorite, andesite, polished deepslate). So
+common modern detailing now works without a vendored minecraft-data tree.
+
 To get the full vanilla catalog per version, vendor the submodule into the
 skill root or set `SCHEMATICA_MINECRAFT_DATA`:
 ```bash
@@ -281,6 +288,47 @@ Then `BlockRegistry.for_version("1.20.1")` reads `minecraft_data/data/pc/1.20.1/
 For 1.7-1.12 targets, prefer `export.mcedit` when colored wool/glass/terracotta
 metadata matters. Sponge export warns if you pair a pre-1.13 `data_version`
 with modern flattened block names.
+
+## Python-only features (not exposed via CLI)
+
+The CLI is a thin shell over the Session API, but some Phase 12 additions are
+only reachable from Python because they need shapes or composition the command
+table cannot express:
+
+- **SDF smooth blending** — `schematica.shapes.sdf.SmoothUnion` /
+  `SmoothIntersect` / `SmoothSubtract` (organic joins with `k`-voxel blend).
+- **BezierCurve** — `schematica.shapes.primitives.BezierCurve` (quadratic /
+  cubic 3D Bezier tubes).
+- **Arbitrary-angle rotation** — `schematica.shapes.transforms.Rotated`
+  (any `angle_deg`, not just 90° multiples).
+- **SVG path voxelization** — `extrude_polygon("M 0 0 H 10 V 10 H 0 Z", ...)`.
+- **Active symmetry decorator** — `Session.enable_symmetry(axis, center)` /
+  `disable_symmetry()`.
+- **Subregion resampling** — `Session.resample_subregion(frm, to, new_size,
+  block, dest_origin=None)`.
+- **Cone/Dome `axis` parameter** — `Cone(..., axis="x"|"z")` and
+  `Dome(..., axis="x"|"z")` for horizontal cones and wall-mounted domes.
+- **Arch `plane` parameter** — `Arch(..., plane="xy"|"xz"|"yz")` for arches in
+  any coordinate plane.
+- **Cylinder `start`/`end` aliases** — clearer along-axis extent for non-Y
+  cylinders (`Cylinder(8, 8, 3, start=2, end=6, axis="x")`).
+
+For these, write a Python script (mode 2 in `workflow_guide.md`):
+
+```python
+from schematica.session.session import Session
+from schematica.shapes.primitives import BezierCurve
+from schematica.shapes.sdf import SmoothUnion, SDFShape
+from schematica.shapes.primitives import Sphere, Cylinder
+
+s = Session.new((32, 32, 32))
+s.enable_symmetry(axis="x")
+s.add(SmoothUnion(Sphere(10, 10, 10, 5), Cylinder(10, 10, 5, 0, 10), k=2.0),
+     "minecraft:stone")
+s.disable_symmetry()
+s.add(BezierCurve((0, 0, 0), (8, 15, 8), (15, 0, 15), thickness=1.0),
+     "minecraft:oak_log")
+```
 
 ## Procedural generation
 

@@ -205,10 +205,11 @@ it into context unless patching. Key modules:
 
 - `schematica.blocks` — `Block`, `BlockRegistry`, `BlockDef`, `BlockStateSchema`
 - `schematica.core` — `VoxelGrid`, `Palette`, `ChunkedGrid` (sparse big-map backend)
-- `schematica.shapes.primitives` — `Box`, `Sphere`, `Ellipsoid`, `Cylinder`, `Cone`, `Pyramid`, `Torus`, `Dome`, `Helix`, `Arch`, `Spiral`, `Staircase`, `Plane`, `Wedge`, `Line` (15 shapes)
+- `schematica.shapes.primitives` — `Box`, `Sphere`, `Ellipsoid`, `Cylinder`, `Cone`, `Pyramid`, `Torus`, `Dome`, `Helix`, `Arch`, `Spiral`, `Staircase`, `Plane`, `Wedge`, `Line`, `BezierCurve` (16 shapes)
 - `schematica.shapes.boolean` — `Union`, `Intersect`, `Subtract`, `Xor`
-- `schematica.shapes.transforms` — `Translated`, `Mirror`, `Rotated90`, `Array`, `NoiseDeformed`, `Shell`
-- `schematica.shapes.polygon` — `Extrude`, `extrude_polygon` (shapely-backed)
+- `schematica.shapes.transforms` — `Translated`, `Mirror`, `Rotated90`, `Rotated` (arbitrary angle), `Array`, `NoiseDeformed`, `Shell`
+- `schematica.shapes.sdf` — `SDFShape`, `SmoothUnion`, `SmoothIntersect`, `SmoothSubtract` (signed-distance-field blending)
+- `schematica.shapes.polygon` — `Extrude`, `extrude_polygon` (shapely + SVG path ``d`` strings)
 - `schematica.shapes.mesh` — `MeshShape`, `load_mesh` (trimesh-backed)
 - `schematica.shapes.heightmap` — `Heightmap`, `from_image`
 - `schematica.generators` — `perlin2d`, `fbm2d`, `apply_terrain`, `apply_tree`, `terrain_heightmap`
@@ -216,7 +217,7 @@ it into context unless patching. Key modules:
 - `schematica.export.sponge` — `write_sponge` (`.schem` writer)
 - `schematica.export.mcedit` — `write_mcedit` (legacy `.schematic` writer)
 - `schematica.export.litematic` — `write_litematic` (`.litematic` writer)
-- `schematica.session` — `Session`, `History`, `CommandSpec` (40+ commands)
+- `schematica.session` — `Session`, `History`, `CommandSpec` (40+ commands); Session supports `enable_symmetry`/`disable_symmetry` (live mirror) and `resample_subregion` (scale a sub-box to a new size).
 - `schematica.cli.repl` — `dispatch`, `run_script`, `repl_main`
 - `schematica.cli.validation` — `CheckResult` + 29 `check_*` functions
 

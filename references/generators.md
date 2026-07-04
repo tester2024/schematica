@@ -5,6 +5,10 @@ through both the library API and CLI commands (`generate.terrain`,
 `generate.tree`, `generate.wfc`). Use Python when you need loops, custom
 placement rules, or generator parameters that the CLI does not expose.
 
+This document also covers the Phase 12 additions: SDF smooth blending,
+Bezier-curve tubes, SVG path voxelization, the active symmetry decorator, and
+the subregion resampling utility.
+
 ## `schematica.generators.noise`
 
 ### `perlin2d(shape, scale=0.05, octaves=4, persistence=0.5, lacunarity=2.0, seed=0) -> np.ndarray`
@@ -59,6 +63,119 @@ generate.wfc frm=4,1,4 to=12,6,12 tileset=mossy_ruins seed=42
 
 More templates such as village, temple, tower, and dungeon remain roadmap
 items.
+
+## SDF smooth blending (Phase 12)
+
+`schematica.shapes.sdf` provides signed-distance-field shapes that compose
+with smooth-minimum / smooth-maximum for organic transitions between shapes.
+Use these where strict binary `Union` / `Subtract` produce hard, mechanical
+joins — for example, melting a stone boulder into a dirt hillside, or blending
+a glass dome smoothly into a stone tower.
+
+- `SDFShape(shape)` — wrap a binary shape as an SDF via distance transform.
+  Uses `scipy.ndimage.distance_transform_edt` when available; falls back to a
+  pure-numpy iterative-erosion BFS so it works without scipy.
+- `SmoothUnion(a, b, k=1.0)` — blend two shapes with a polynomial smooth-min.
+  `k=0` reduces to the hard boolean `Union` (byte-identical; verified by
+  `test_smooth_union_hard_k0_matches_union`).
+- `SmoothIntersect(a, b, k=1.0)` — smooth intersection (smooth-max of SDFs).
+- `SmoothSubtract(a, b, k=1.0)` — smooth subtraction: `smooth-max(a, -b)`.
+
+```python
+from schematica.shapes.primitives import Sphere, Cylinder
+from schematica.shapes.sdf import SmoothUnion
+
+# Organic terrain-to-structure transition: 2-voxel blend.
+blend = SmoothUnion(Sphere(10, 10, 10, 5), Cylinder(10, 10, 5, 0, 10), k=2.0)
+s.add(blend, "minecraft:stone")
+```
+
+Larger `k` widens the blend region; `k=0` is the hard boolean op. SDF evaluation
+is O(N³) per shape so prefer it for medium grids (≤ ~64³) or use the chunked
+backend to limit touched chunks.
+
+## Bezier curves and tubes (Phase 12)
+
+`schematica.shapes.primitives.BezierCurve` draws a 1-voxel-thick 3D Bezier
+curve and extrudes it into a tube of `thickness` voxels. Supports quadratic
+(3 control points) and cubic (4 control points) curves. Useful for organic
+paths, winding rivers, custom bridge cables, and decorative arches that
+Bresenham lines cannot express.
+
+```python
+from schematica.shapes.primitives import BezierCurve
+
+# Quadratic Bezier: arc from (0,0,0) through (8,15,8) to (15,0,15), tube radius 1.0.
+curve = BezierCurve((0, 0, 0), (8, 15, 8), (15, 0, 15), thickness=1.0)
+s.add(curve, "minecraft:oak_log")
+
+# Cubic Bezier: S-curve from (0,0,0) to (15,0,0) bowing up and back down.
+s_curve = BezierCurve((0, 0, 0), (0, 15, 15), (15, 15, 15), (15, 0, 0),
+                     thickness=1.5, samples=200)
+s.add(s_curve, "minecraft:smooth_quartz")
+```
+
+## SVG path voxelization (Phase 12)
+
+`extrude_polygon` now accepts an SVG path `d`-string. The parser supports
+`M`/`L`/`H`/`V`/`C`/`Q`/`Z` (absolute and lowercase relative); curved `C`/`Q`
+segments are flattened into polylines, then closed and converted to a shapely
+polygon via `buffer(0)`. This lets you take a decorative SVG silhouette and
+extrude it into a prism without an external SVG library.
+
+```python
+from schematica.shapes.polygon import extrude_polygon
+
+# A 10x10 square via SVG path: M 0 0 H 10 V 10 H 0 Z
+shape = extrude_polygon("M 0 0 H 10 V 10 H 0 Z", origin=(0, 0, 0),
+                        extrude_axis="z", length=4)
+s.add(shape, "minecraft:quartz_block")
+
+# A path with a quadratic curve: M 0 0 Q 5 10 10 0 Z
+curved = extrude_polygon("M 0 0 Q 5 10 10 0 Z", origin=(0, 0, 0),
+                        extrude_axis="z", length=3)
+s.add(curved, "minecraft:smooth_quartz")
+```
+
+## Active symmetry decorator (Phase 12)
+
+`Session.enable_symmetry(axis, center=None)` turns on live mirroring: every
+subsequent `add` / `subtract` / `paint` is automatically unioned with its
+mirror image about `center` (grid middle by default) along `axis` (0/1/2 or
+`"x"`/`"y"`/`"z"`). `disable_symmetry()` turns it off; `symmetry_active` is a
+read-only property. This is the dynamic brush the review asked for — much
+faster than manually wrapping each shape in `Union((shape, Mirror(...)))`.
+
+```python
+from schematica.session.session import Session
+from schematica.shapes.primitives import Box
+
+s = Session.new((16, 16, 16))
+s.enable_symmetry(axis="x")  # mirror about x = 7.5 (grid middle)
+s.add(Box(0, 0, 0, 3, 3, 3), "minecraft:stone")
+# Both (1,1,1) and (14,1,1) are now stone.
+s.disable_symmetry()
+assert not s.symmetry_active
+```
+
+## Subregion resampling (Phase 12)
+
+`Session.resample_subregion(frm, to, new_size, block, dest_origin=None)`
+resamples a source box `[frm, to]` (inclusive) to `new_size` using nearest-
+neighbour interpolation, then writes the non-air voxels at `dest_origin`
+(defaults to `frm`'s min corner) as the given `block`. Useful for upscaling a
+detailed $10^3$ pillar into a $15^3$ space or shrinking a build into a thumbnail.
+
+```python
+s = Session.new((32, 32, 32))
+s.add(Box(0, 0, 0, 9, 9, 9), "minecraft:stone")  # 10x10x10 source
+# Downscale to a 4x4x4 thumbnail at (24, 24, 24).
+s.resample_subregion((0, 0, 0), (9, 9, 9), new_size=(4, 4, 4),
+                    block="minecraft:cobblestone", dest_origin=(24, 24, 24))
+# Upscale the same source to 20x20x20 at (12, 0, 12).
+s.resample_subregion((0, 0, 0), (9, 9, 9), new_size=(20, 20, 20),
+                    block="minecraft:smooth_stone", dest_origin=(12, 0, 12))
+```
 
 ## Texture hacks
 

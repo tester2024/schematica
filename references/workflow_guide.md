@@ -67,12 +67,31 @@ repetition, and unresolved transitions before export.
    → **YES → use inline `-c`** (mode 3).
 
 4. **Does the build need a custom shape not in the toolkit?**
-   (e.g. a fractal, a custom mesh, a WFC pattern)
+   (e.g. a fractal, a custom mesh, a WFC pattern, a Bezier curve, an SDF
+   smooth-blended join)
    → **Python script** that implements the `Shape` protocol and feeds it to
-   `session.add`.
+   `session.add`, or uses `schematica.shapes.sdf` / `BezierCurve` /
+   `Rotated` directly.
 
-5. **Does the build need to import an OBJ/STL mesh?**
-   → **Python script** using `schematica.shapes.mesh.load_mesh`.
+5. **Does the build need to import an OBJ/STL mesh or an SVG path?**
+   → **Python script** using `schematica.shapes.mesh.load_mesh` or
+   `schematica.shapes.polygon.extrude_polygon` (which now accepts SVG path
+   `d`-strings like `"M 0 0 H 10 V 10 H 0 Z"`).
+
+6. **Does the build need an axis-aware Cone/Dome or a non-XY-plane Arch?**
+   → **Python script** — `Cone(..., axis="x"|"z")`, `Dome(..., axis="x"|"z")`,
+   and `Arch(..., plane="xy"|"xz"|"yz")` are Python-only (the CLI's
+   `add.cone`/`add.dome`/`add.arch` are still Y-axis / XY-plane only for
+   backward compatibility).
+
+7. **Does the build need a live symmetry mirror as you add shapes?**
+   → **Python script** using `Session.enable_symmetry(axis, center)` /
+   `disable_symmetry()`. The CLI's `clone.cardinal` is a one-shot copy, not a
+   live decorator.
+
+8. **Does the build need to rescale a sub-region to a different size?**
+   → **Python script** using `Session.resample_subregion(frm, to, new_size,
+   block, dest_origin=None)`.
 
 **Default**: when in doubt, use **CLI script**. It's the mode with the most
 guardrails. Only escalate to Python when the CLI can't express what's needed.
@@ -396,3 +415,143 @@ Regardless of mode, confirm the build is non-empty before delivering:
 - Hard to debug → keep to one-liners only.
 - No error recovery → a single exception kills the whole command.
 - Quoting hell on Windows → prefer a temp `.py` file for anything >1 line.
+
+## Phase 12 advanced recipes (Python-only features)
+
+These recipes use shapes and session features that are not exposed via the CLI
+command table. Switch to Python mode (mode 2) to use them.
+
+### SDF smooth-blended boulder melting into terrain
+
+```python
+from schematica.session.session import Session
+from schematica.shapes.primitives import Sphere, Box
+from schematica.shapes.sdf import SmoothUnion, SmoothSubtract
+from schematica.generators.templates import apply_terrain
+from schematica.export.sponge import write_sponge
+
+s = Session.new((32, 32, 32))
+apply_terrain(s, seed=42, amplitude=4)
+# A boulder that melts smoothly into the dirt (2-voxel blend).
+boulder = SmoothUnion(Sphere(16, 10, 16, 5), Box(12, 8, 12, 20, 14, 20), k=2.0)
+s.add(boulder, "minecraft:stone")
+# Smoothly carve a cave out of the boulder.
+cave = SmoothSubtract(boulder, Sphere(16, 11, 16, 3), k=1.5)
+s.subtract(SmoothSubtract(boulder, Sphere(16, 11, 16, 3), k=1.5))
+write_sponge(s.grid, "melted_boulder.schem")
+```
+
+### Bezier-curve bridge cables
+
+```python
+from schematica.session.session import Session
+from schematica.shapes.primitives import BezierCurve
+from schematica.export.sponge import write_sponge
+
+s = Session.new((48, 32, 48))
+# Two suspension cables as cubic Bezier curves, mirrored live.
+s.enable_symmetry(axis="x", center=24.0)
+s.add(BezierCurve((0, 16, 24), (12, 28, 24), (36, 28, 24), (48, 16, 24),
+                 thickness=1.0, samples=200), "minecraft:smooth_quartz")
+s.disable_symmetry()
+write_sponge(s.grid, "bridge.schem")
+```
+
+### SVG-path decorative wall panel
+
+```python
+from schematica.session.session import Session
+from schematica.shapes.polygon import extrude_polygon
+from schematica.export.sponge import write_sponge
+
+s = Session.new((32, 32, 32))
+# A clover-ish quatrefoil: M 4 8 Q 8 0 12 8 Q 16 16 12 8 Q 8 16 4 8 Z
+# (illustrative — adjust path for your silhouette)
+panel = extrude_polygon("M 4 8 Q 8 0 12 8 Q 16 16 12 8 Q 8 16 4 8 Z",
+                        origin=(8, 8, 8), extrude_axis="z", length=4)
+s.add(panel, "minecraft:smooth_quartz")
+write_sponge(s.grid, "panel.schem")
+```
+
+### Horizontal cone and wall-mounted dome
+
+```python
+from schematica.session.session import Session
+from schematica.shapes.primitives import Cone, Dome
+from schematica.export.sponge import write_sponge
+
+s = Session.new((32, 32, 32))
+# Horizontal cone pointing +X (axis="x")
+s.add(Cone(8, 16, 6, y_base=8, y_apex=24, axis="x"), "minecraft:quartz_block")
+# Wall-mounted dome on the +Z face (axis="z")
+s.add(Dome(16, 16, 8, 5, axis="z"), "minecraft:smooth_quartz")
+write_sponge(s.grid, "horizontal_cone.schem")
+```
+
+### Arch in the X-Z plane (extruded along Y)
+
+```python
+from schematica.session.session import Session
+from schematica.shapes.primitives import Arch
+from schematica.export.sponge import write_sponge
+
+s = Session.new((32, 32, 32))
+# plane="xz": ring in (X, Z) centered at (cx, cy=16), extrude along Y [0..16].
+s.add(Arch(16, 16, 0, 16, r=6, thickness=1.5, plane="xz"),
+     "minecraft:stone_bricks")
+write_sponge(s.grid, "xz_arch.schem")
+```
+
+### Live symmetry mirror (active decorator)
+
+```python
+from schematica.session.session import Session
+from schematica.shapes.primitives import Box
+from schematica.export.sponge import write_sponge
+
+s = Session.new((32, 32, 32))
+# Mirror every subsequent add about the X=15.5 plane.
+s.enable_symmetry(axis="x", center=15.5)
+s.add(Box(2, 2, 2, 8, 8, 8), "minecraft:stone")        # original on the left
+s.add(Box(2, 12, 2, 4, 14, 4), "minecraft:gold_block") # original near top-left
+# Both (5,5,5) and (26,5,5) are stone; (3,13,3) and (28,13,3) are gold.
+s.disable_symmetry()
+assert not s.symmetry_active
+write_sponge(s.grid, "mirrored.schem")
+```
+
+### Rescale a sub-region (upscale and downscale)
+
+```python
+from schematica.session.session import Session
+from schematica.shapes.primitives import Box
+from schematica.export.sponge import write_sponge
+
+s = Session.new((64, 32, 64))
+s.add(Box(0, 0, 0, 9, 9, 9), "minecraft:stone")  # 10x10x10 source cube
+# Upscale it to 20x20x20 placed at (24, 0, 24).
+s.resample_subregion((0, 0, 0), (9, 9, 9), new_size=(20, 20, 20),
+                    block="minecraft:smooth_stone", dest_origin=(24, 0, 24))
+# Downscale the same source to a 4x4x4 thumbnail at (40, 20, 40).
+s.resample_subregion((0, 0, 0), (9, 9, 9), new_size=(4, 4, 4),
+                    block="minecraft:cobblestone", dest_origin=(40, 20, 40))
+write_sponge(s.grid, "rescaled.schem")
+```
+
+### Arbitrary-angle rotation (not just 90°)
+
+```python
+from schematica.session.session import Session
+from schematica.shapes.primitives import Box
+from schematica.shapes.transforms import Rotated
+from schematica.export.sponge import write_sponge
+
+s = Session.new((32, 32, 32))
+# A box rotated 30 degrees in the XY plane — high-fidelity diagonal.
+s.add(Rotated(Box(8, 8, 8, 24, 24, 24), angle_deg=30.0, axes="xy"),
+     "minecraft:stone")
+# A box rotated 45 degrees in the XZ plane.
+s.add(Rotated(Box(8, 8, 8, 24, 8, 24), angle_deg=45.0, axes="xz"),
+     "minecraft:quartz_block")
+write_sponge(s.grid, "rotated.schem")
+```

@@ -113,39 +113,78 @@ preview out_dir=previews
 ## Shape toolkit
 
 Primitives: `Box, Sphere, Ellipsoid, Cylinder, Cone, Pyramid, Torus, Plane,
-Wedge, Line`.
+Wedge, Line, Dome, Helix, Arch, Spiral, Staircase, BezierCurve` (16 shapes).
+
+Cylinder, Cone, and Dome accept an `axis` argument (`"x"|"y"|"z"`) so horizontal
+cones / wall-mounted domes are one-liners; `Cylinder` also accepts `start`/`end`
+aliases for the along-axis extent (clearer than `y0`/`y1` for non-Y axes). `Arch`
+accepts a `plane` argument (`"xy"|"xz"|"yz"`) so an arch can lie in any
+coordinate plane.
 
 Boolean: `Union, Intersect, Subtract, Xor`.
 
-Polygon (shapely): `Extrude` a 2D polygon into a prism along x/y/z. Load from
-WKT, GeoJSON, or a `.json` file.
+SDF smooth blending: `SDFShape, SmoothUnion, SmoothIntersect, SmoothSubtract`
+(signed-distance-field composition with a `k`-voxel blend radius; `k=0` is the
+hard boolean op). Uses scipy when available, pure-numpy fallback otherwise.
+
+Polygon (shapely + SVG): `Extrude` a 2D polygon into a prism along x/y/z. Load
+from WKT, GeoJSON, a `.json` file, or an SVG path `d`-string
+(e.g. `"M 0 0 H 10 V 10 H 0 Z"` — supports `M`/`L`/`H`/`V`/`C`/`Q`/`Z`).
 
 Mesh (trimesh): `MeshShape` voxelizes any OBJ/STL/glTF into the grid.
 
 Heightmap: `Heightmap` from a 2D array or `from_image(path)`.
 
-Transforms: `Translated, Mirror, Rotated90, Array` (repeat).
+Transforms: `Translated, Mirror, Rotated90, Rotated` (any angle, not just 90°),
+`Array` (repeat), `NoiseDeformed, Shell`.
+
+## Session features
+
+- `add` / `subtract` / `intersect` / `paint` forward `**shape_kwargs` to the
+  shape's dataclass fields via `dataclasses.replace` — so
+  `s.add(Sphere(...), "stone", hollow=True)` works. Unknown kwargs raise
+  `TypeError` listing the valid fields.
+- `enable_symmetry(axis, center=None)` / `disable_symmetry()`: live mirror
+  decorator. When enabled, every subsequent add/subtract/paint is automatically
+  unioned with its mirror image about `center` (grid middle by default) along
+  `axis`. `symmetry_active` is a read-only property.
+- `resample_subregion(frm, to, new_size, block, dest_origin=None)`: nearest-
+  neighbour rescale of a sub-box to `new_size`, written at `dest_origin`.
+- `set_box` / `set_many`: fast bulk write paths for procedural detail.
+- `undo` / `redo` (delta-based history), `save` / `load` session JSON.
+- `marker(name, x, y, z, kind)` / `region(name, corner, size, kind)` /
+  `export_markers(path)` for annotations.
+- `paint_gradient`, `edge_wear`, `surface_scatter` for organic detail.
+- `walkable_at`, `clearance_at`, `is_connected`, `reachable_area`,
+  `shortest_path` for spatial / walkability analysis.
 
 ## Generators
 
 - `terrain_heightmap(shape, seed, amplitude, scale)` — Perlin-based surface.
 - `apply_terrain(session, ...)` — fills stone+dirt+grass top layer.
 - `apply_tree(session, x, z, height)` — trunk + leaf canopy.
+- `generate.wfc` — wave function collapse with a `mossy_ruins` tileset.
+- `texture.palette` — noise-driven material mix on existing solids.
 
 ## Architecture
 
 ```
 scripts/
   schematica/
-    blocks/      Block, BlockRegistry (minecraft-data JSON)
-    core/        VoxelGrid, Palette
-    shapes/      primitives, polygon, mesh, heightmap, transforms, boolean
-    generators/  noise, templates
+    blocks/      Block, BlockRegistry (minecraft-data JSON + enriched fallback)
+    core/        VoxelGrid, Palette, ChunkedGrid (sparse big-map backend)
+    shapes/      primitives, polygon (shapely+SVG), mesh, heightmap,
+                 transforms, boolean, sdf (smooth blending)
+    generators/  noise, templates, replace, retexture, texture, wfc
+    procedural/  detail (gradient / edge wear / surface scatter)
+    analysis/    spatial (walkability / pathfinding)
     render/      matplotlib voxel preview -> PNG
-    export/      Sponge .schem, MCEdit .schematic, Litematica .litematic
-    session/     Session, History, Commands
+    export/      Sponge .schem, MCEdit .schematic, Litematica .litematic,
+                 report, validation, materials
+    constraints.py  declarative build constraints
+    session/     Session, History, Commands (40+ commands)
     cli/         REPL, parser, validation
-  tests/         developer test suite
+  tests/         developer test suite (320+ tests)
 references/       docs loaded on demand
 ```
 
@@ -161,6 +200,16 @@ references/       docs loaded on demand
 - **Bulk procedural writes**: use `Session.set_box(...)` and `Session.set_many(...)`
   for high-volume generated detail instead of thousands of tiny shape masks.
 - **Determinism**: all procedural generators take a `seed`; pin it in tests.
+- **Kwargs delegation**: `Session.add/subtract/paint/intersect` forward
+  `**shape_kwargs` to the shape via `dataclasses.replace`. Unknown kwargs
+  raise `TypeError` with a clear list of valid fields.
+- **Active symmetry**: `enable_symmetry` wraps each shape in a
+  `Union((shape, Translated(Mirror(shape), ...)))` automatically; the wrapper
+  is rebuilt on every op so the mirror follows the current grid shape.
+- **SDF distance transform**: `schematica.shapes.sdf._mask_to_sdf` uses
+  `scipy.ndimage.distance_transform_edt` when available; otherwise a pure-numpy
+  iterative-erosion BFS. Fully-filled masks get a constant negative distance
+  so `SmoothSubtract` on a fully-filled box doesn't hang.
 
 ### Failure modes to watch
 
@@ -175,8 +224,11 @@ references/       docs loaded on demand
   slashes in `path=` arguments, or quote the whole path.
 - **minecraft-data submodule missing**: the registry falls back to a compact
   built-in block list with common structural, resource, mapmaking, colored, and
-  stateful detail blocks. Validate full-fidelity builds against a vendored
-  `minecraft_data/`.
+  stateful detail blocks, plus the Phase 12 quartz family, concrete slabs/stairs
+  for all 16 colors, and ~40 stone-variant slabs/stairs (deepslate, tuff,
+  calcite, blackstone, prismarine, end stone brick, mossy stone brick/cobble-
+  stone, granite, diorite, andesite, polished deepslate). Validate full-fidelity
+  builds against a vendored `minecraft_data/`.
 - **Legacy versions**: for 1.7-1.12 colored blocks, prefer MCEdit `.schematic`.
   Sponge export warns when a pre-1.13 `data_version` is paired with modern
   flattened blockstate names. MCEdit export warns when a non-air block has no
@@ -198,7 +250,13 @@ references/       docs loaded on demand
 cd scripts
 python -m pytest tests -q
 python -m ruff check schematica
+python -m mypy schematica
 ```
+
+The suite has 320+ tests covering shapes, boolean ops, transforms, SDF smooth
+blending, Bezier curves, SVG path voxelization, active symmetry, subregion
+resampling, session history, chunked backend, export round-trips for all three
+formats, spatial analysis, constraints, and CLI dispatch.
 
 ## License
 

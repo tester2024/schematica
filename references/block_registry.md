@@ -113,6 +113,43 @@ furnaces, lanterns, signs, and waterlogged variants. For full fidelity across
 every vanilla block and version-specific state, still vendor the minecraft-data
 repo.
 
+### Phase 12 enrichment (quartz + concrete + stone-variant slabs & stairs)
+
+To prevent `KeyError` on common modern detailing blocks without a vendored
+minecraft-data tree, the fallback catalog was extended with:
+
+- **Quartz family**: `minecraft:smooth_quartz`, `minecraft:quartz_pillar`
+  (with `axis` state), `minecraft:chiseled_quartz_block`, `minecraft:quartz_slab`,
+  `minecraft:smooth_quartz_slab`, `minecraft:quartz_stairs`,
+  `minecraft:smooth_quartz_stairs`.
+- **Concrete slabs + stairs** for all 16 colors:
+  `minecraft:<color>_concrete_slab`, `minecraft:<color>_concrete_stairs`
+  (each with the proper `_SLAB_STATES` / `_STAIRS_STATES` schema).
+- **Stone-variant slabs + stairs**: `smooth_stone_slab`, `sandstone_slab`,
+  `red_sandstone_slab`, `nether_brick_slab`, `smooth_sandstone_stairs`,
+  `red_sandstone_stairs`, `nether_brick_stairs`, `prismarine_slab`,
+  `prismarine_bricks_slab`, `dark_prismarine_slab`, `prismarine_stairs`,
+  `end_stone_brick_slab`, `end_stone_brick_stairs`, `mossy_stone_brick_slab`,
+  `mossy_stone_brick_stairs`, `mossy_cobblestone_slab`,
+  `mossy_cobblestone_stairs`, `granite_slab`, `granite_stairs`,
+  `polished_granite_slab`, `polished_granite_stairs`, `diorite_slab`,
+  `diorite_stairs`, `andesite_slab`, `andesite_stairs`, `deepslate_brick_slab`,
+  `deepslate_brick_stairs`, `deepslate_tile_slab`, `deepslate_tile_stairs`,
+  `blackstone_slab`, `blackstone_stairs`, `tuff_slab`, `tuff_stairs`,
+  `tuff_bricks`, `tuff_brick_slab`, `tuff_brick_stairs`, `calcite_slab`,
+  `calcite_stairs`, `chiseled_deepslate`, `polished_deepslate_slab`,
+  `polished_deepslate_stairs`, and `smooth_basalt`.
+
+Verify a fallback block resolves:
+
+```python
+from schematica.blocks.registry import BlockRegistry
+from schematica.blocks.block import Block
+reg = BlockRegistry.for_version("1.20.1")  # no minecraft_data/ vendored
+b = reg.resolve(Block.parse("minecraft:blue_concrete_slab[type=bottom]"))
+# -> minecraft:blue_concrete_slab[type=bottom,waterlogged=false]
+```
+
 `BlockRegistry.resolve(block, strict=True)` rejects unknown explicit state keys,
 invalid enum/bool/int values, repeated keys, and states on blocks with no known
 schema. Pass `strict=False` only for compatibility with already-trusted palette

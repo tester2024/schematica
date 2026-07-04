@@ -27,12 +27,28 @@ Voxels within Euclidean distance `r` of center. `hollow` keeps a shell.
 ### `Ellipsoid(cx, cy, cz, rx, ry, rz, hollow=False, shell_thickness=1.0)`
 Anisotropic sphere. `(X-cx)/rx)² + ... <= 1`.
 
-### `Cylinder(cx, cz, r, y0, y1, axis="y", hollow=False, shell_thickness=1.0)`
-Vertical (y-axis) cylinder from `y0` to `y1` (inclusive). Only `axis="y"`
-currently implemented.
+### `Cylinder(cx, cz, r, y0, y1, axis="y", hollow=False, shell_thickness=1.0, start=None, end=None)`
+Right circular cylinder along ``axis`` (``"y"`` default, ``"x"`` or ``"z"``).
+``cx``/``cz`` are the cross-section center coords and ``y0``/``y1`` are the
+along-axis extent (inclusive). For ``axis="x"`` the cross-section is in (Y, Z)
+centered at ``(cx, cz)`` and the long axis runs along X from ``y0`` to ``y1``;
+for ``axis="z"`` the cross-section is in (X, Y) centered at ``(cx, cz)`` and the
+long axis runs along Z. ``hollow=True`` keeps a tube shell of
+``shell_thickness`` voxels.
 
-### `Cone(cx, cz, r_base, y_base, y_apex)`
-Radius shrinks linearly from `r_base` at `y_base` to 0 at `y_apex`.
+The ``start``/``end`` aliases are explicit, axis-agnostic names for the
+along-axis extent — when provided they override ``y0``/``y1`` and make
+non-Y cylinders read naturally:
+
+```python
+Cylinder(8, 8, 3, start=2, end=6, axis="x")   # horizontal along X, cross-section in (Y,Z)
+Cylinder(8, 8, 3, start=2, end=6, axis="z")   # horizontal along Z, cross-section in (X,Y)
+```
+
+### `Cone(cx, cz, r_base, y_base, y_apex, axis="y")`
+Radius shrinks linearly from `r_base` at `y_base` to 0 at `y_apex`. The cone
+runs along `axis` (``"y"`` default, ``"x"`` or ``"z"``); ``y_base``/``y_apex``
+are interpreted as coordinates along that axis.
 
 ### `Pyramid(x0, z0, base_half, y_base, y_apex)`
 Square pyramid centered at `(x0, z0)`.
@@ -51,18 +67,25 @@ diagonal runs in the (x, y) plane so the apex sits at `x=x1, y=y0`.
 ### `Line(x0, y0, z0, x1, y1, z1)`
 1-voxel-thick line via 3D lerp.
 
-### `Dome(cx, cy, cz, r, hollow=False, shell_thickness=1.0)` (advanced)
-Half-sphere: the upper hemisphere (y >= cy) of a sphere. Great for roofs,
-hills, and caps.
+### `Dome(cx, cy, cz, r, hollow=False, shell_thickness=1.0, axis="y")` (advanced)
+Half-sphere along ``axis`` (``"y"`` default, ``"x"`` or ``"z"``). For
+``axis="y"`` keeps the upper hemisphere (y >= cy); for ``axis="x"`` keeps
+X >= cx; for ``axis="z"`` keeps Z >= cz. Great for roofs, hills, wall caps,
+and horizontal apses without needing ``Rotated90``.
 
 ### `Helix(cx, cy, cz, r, y0, y1, turns=3.0, thickness=1.0)` (advanced)
 A helical curve winding `turns` times around the vertical (y) axis from `y0`
 to `y1`, at radius `r`. Useful for spiral staircases, DNA strands, decorative
 columns.
 
-### `Arch(cx, cy, z0, z1, r, thickness=1.0)` (advanced)
-A semicircular arch in the (x, y) plane, extruded along z from `z0` to `z1`.
-The arch is a half-ring from angle 0 to pi.
+### `Arch(cx, cy, z0, z1, r, thickness=1.0, plane="xy")` (advanced)
+A semicircular arch in the coordinate plane ``plane`` (``"xy"`` default,
+``"xz"`` or ``"yz"``), extruded along the third axis. For ``plane="xy"`` the
+ring lies in (X, Y) centered at (cx, cy) and extrudes along Z from ``z0`` to
+``z1`` (the legacy behavior). For ``plane="xz"`` the ring lies in (X, Z)
+centered at (cx, cy) and extrudes along Y; for ``plane="yz"`` the ring lies
+in (Y, Z) centered at (cx, cy) and extrudes along X. The half-ring spans
+angle 0 to pi on the +side of the in-plane axis.
 
 ### `Spiral(cx, cz, y0, y1, r_inner, r_outer, turns=2.0, thickness=1.0)` (advanced)
 A flat 2D spiral in the (x, z) plane, extruded vertically from `y0` to `y1`.
