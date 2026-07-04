@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from schematica.blocks.block import AIR, Block
 from schematica.core.palette import Palette

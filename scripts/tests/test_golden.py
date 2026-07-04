@@ -11,7 +11,6 @@ failures; only substantial visual changes trip the test.
 from __future__ import annotations
 
 import gzip
-import io
 from pathlib import Path
 
 import pytest

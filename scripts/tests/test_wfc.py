@@ -1,14 +1,12 @@
 """Tests for the Wave Function Collapse generator."""
 from __future__ import annotations
 
-import numpy as np
 import pytest
 
 from schematica.generators.wfc import (
     ContradictionError,
     Tile,
     TileSet,
-    WFC,
     run_wfc,
     tileset_mossy_ruins,
     tileset_wildcard,

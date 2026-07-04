@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
-from schematica.shapes.primitives import Dome, Helix, Arch, Spiral, Staircase
+from schematica.shapes.primitives import Arch, Dome, Helix, Spiral, Staircase
 
 
 def test_dome_upper_half_only():

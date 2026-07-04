@@ -1,8 +1,6 @@
 """Tests for export validation, constraint system, and material intelligence."""
 from __future__ import annotations
 
-from pathlib import Path
-
 from schematica.cli.repl import dispatch
 from schematica.constraints import (
     BlockBan,
@@ -17,7 +15,7 @@ from schematica.constraints import (
 from schematica.export.materials import apply_substitutions, suggest_substitutions
 from schematica.export.validation import validate_all, validate_export
 from schematica.session.session import Session
-from schematica.shapes.primitives import Box, Sphere
+from schematica.shapes.primitives import Box
 
 
 def _solid_grid(size: int = 8, block: str = "minecraft:stone") -> Session:

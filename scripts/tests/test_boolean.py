@@ -1,10 +1,8 @@
 """Tests for boolean shape ops."""
 from __future__ import annotations
 
-import numpy as np
-
 from schematica.shapes.boolean import Intersect, Subtract, Union, Xor
-from schematica.shapes.primitives import Box, Sphere
+from schematica.shapes.primitives import Box
 
 
 def test_union_overlap():

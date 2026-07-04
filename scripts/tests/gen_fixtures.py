@@ -19,7 +19,6 @@ from schematica.render.preview import preview
 from schematica.session.session import Session
 from schematica.shapes.primitives import Box, Sphere
 
-
 FIX = Path(__file__).resolve().parent / "fixtures"
 
 

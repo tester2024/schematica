@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from schematica.cli.repl import dispatch
-from schematica.procedural.detail import paint_gradient, edge_wear, surface_scatter
+from schematica.procedural.detail import edge_wear, paint_gradient, surface_scatter
 from schematica.session.session import Session
 from schematica.shapes.primitives import Box
 

@@ -2,17 +2,13 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from schematica.blocks.block import AIR, Block
-from schematica.core.chunked import ChunkedGrid
-from schematica.core.palette import Palette
 from schematica.core.voxel import VoxelGrid
 from schematica.generators.replace import (
     NeighbourSpec,
     replace_bulk,
     replace_by_name,
-    replace_filtered,
     replace_in_mask,
     replace_pattern,
 )
