@@ -182,7 +182,8 @@ def _run_checks(name: str, kwargs: dict[str, Any], session: Session) -> list[v.C
     if name == "generate.tree":
         return v.check_generate_tree(kwargs["at"], kwargs.get("height", 6), session)
     if name == "generate.wfc":
-        return v.check_generate_wfc(kwargs["frm"], kwargs["to"], session)
+        return v.check_generate_wfc(kwargs["frm"], kwargs["to"], session,
+                                    kwargs["blocks"], reg)
     if name == "export":
         return v.check_export(kwargs["path"])
     if name == "export.mcedit":

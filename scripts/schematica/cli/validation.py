@@ -562,7 +562,9 @@ def check_generate_tree(at: str, height: int, session: Any) -> list[CheckResult]
     return out
 
 
-def check_generate_wfc(frm: str, to: str, session: Any) -> list[CheckResult]:
+def check_generate_wfc(frm: str, to: str, session: Any,
+                       blocks: str | None = None,
+                       registry: Any = None) -> list[CheckResult]:
     out: list[CheckResult] = []
     a = _coord_tuple(frm)
     b = _coord_tuple(to)
@@ -575,6 +577,13 @@ def check_generate_wfc(frm: str, to: str, session: Any) -> list[CheckResult]:
         if any(d < 0 for d in dims):
             out.append(CheckResult("error", "inverted_bounds",
                                    f"wfc frm={a} to={b} has inverted bounds"))
+    if blocks is not None:
+        palette = [b.strip() for b in blocks.split("+") if b.strip()]
+        if not palette:
+            out.append(CheckResult("error", "empty_blocks",
+                                   "wfc blocks must include at least one block"))
+        for block in palette:
+            out.extend(_check_block(block, registry))
     return out
 
 

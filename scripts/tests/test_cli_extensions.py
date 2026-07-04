@@ -21,7 +21,11 @@ def test_dispatch_generate_tree():
 
 def test_dispatch_generate_wfc():
     s = Session.new((8, 8, 8))
-    res = dispatch(s, "generate.wfc frm=0,0,0 to=3,0,3 tileset=mossy_ruins seed=1")
+    res = dispatch(
+        s,
+        "generate.wfc frm=0,0,0 to=3,0,3 "
+        "blocks=minecraft:stone+minecraft:cobblestone+minecraft:dirt seed=1",
+    )
     assert "wfc" in res
     # WFC should place at least one non-air block in the 4x1x4 region.
     assert s.grid.nonempty_count() > 0

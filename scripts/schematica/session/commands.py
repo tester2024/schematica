@@ -645,10 +645,9 @@ def cmd_generate_tree(s: Session, at: str, height: int = 6,
 
 
 def cmd_generate_wfc(s: Session, frm: str, to: str,
-                     tileset: str = "mossy_ruins",
-                     seed: int = 0) -> str:
+                     blocks: str, seed: int = 0) -> str:
     """Run WFC over a sub-box and place the resulting blocks."""
-    from ..generators.wfc import run_wfc, tileset_mossy_ruins
+    from ..generators.wfc import run_wfc, tileset_wildcard
     x0, y0, z0 = _coord_tuple(frm)
     x1, y1, z1 = _coord_tuple(to)
     x0, x1 = min(x0, x1), max(x0, x1)
@@ -657,15 +656,10 @@ def cmd_generate_wfc(s: Session, frm: str, to: str,
     shape = (x1 - x0 + 1, y1 - y0 + 1, z1 - z0 + 1)
     if any(d <= 0 for d in shape):
         return "error: wfc box must have positive volume"
-    if tileset == "mossy_ruins":
-        ts = tileset_mossy_ruins()
-    elif tileset == "wildcard":
-        # Wildcard needs a block list; pick a sensible default palette.
-        from ..generators.wfc import Tile, TileSet
-        ts = TileSet([Tile("minecraft:stone"), Tile("minecraft:cobblestone"),
-                       Tile("minecraft:dirt")])
-    else:
-        return f"error: unknown tileset {tileset!r}"
+    palette = [b.strip() for b in blocks.split("+") if b.strip()]
+    if not palette:
+        return "error: wfc blocks must include at least one block"
+    ts = tileset_wildcard(palette)
     blocks = run_wfc(shape, ts, seed=seed)
     from ..blocks.block import Block
     for xx in range(shape[0]):
@@ -674,7 +668,7 @@ def cmd_generate_wfc(s: Session, frm: str, to: str,
                 b = blocks[xx, yy, zz]
                 if b != "minecraft:air":
                     s.grid.set(x0 + xx, y0 + yy, z0 + zz, Block.parse(b))
-    return f"wfc {frm}->{to} tileset={tileset} seed={seed}"
+    return f"wfc {frm}->{to} blocks={len(palette)} seed={seed}"
 
 
 COMMANDS: dict[str, CommandSpec] = {
@@ -901,9 +895,9 @@ COMMANDS: dict[str, CommandSpec] = {
     ), cmd_generate_tree, "generate a tree at=X height=N"),
     "generate.wfc": CommandSpec("generate.wfc", (
         ArgSpec("frm", "coords"), ArgSpec("to", "coords"),
-        ArgSpec("tileset", "str", default="mossy_ruins", required=False),
+        ArgSpec("blocks", "str"),
         ArgSpec("seed", "int", default=0, required=False),
-    ), cmd_generate_wfc, "wave function collapse fill frm=A to=B tileset=name"),
+    ), cmd_generate_wfc, "wave function collapse fill frm=A to=B blocks=a+b+c"),
     # ---- procedural detail ----
     "paint.gradient": CommandSpec("paint.gradient", (
         ArgSpec("frm", "coords"), ArgSpec("to", "coords"),
