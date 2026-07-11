@@ -136,7 +136,7 @@ def write_sponge(grid: VoxelGrid | ChunkedGrid, path: str | Path, *, data_versio
         "Length": Short(sz),
         "PaletteMax": Int(len(palette)),
         "Palette": Compound(palette_comp),
-        "BlockData": ByteArray([b if b < 128 else b - 256 for b in block_bytes]),
+        "BlockData": ByteArray(np.frombuffer(block_bytes, dtype=np.int8)),
         "Offset": IntArray([Int(offset[0]), Int(offset[1]), Int(offset[2])]),
     })
     if metadata:

@@ -40,6 +40,7 @@ class BlockStateSchema:
     type: str
     default: object
     values: tuple[object, ...] = ()
+    num_values: int | None = None
 
 
 @dataclass(frozen=True)
@@ -48,6 +49,8 @@ class BlockDef:
     name: str
     display_name: str
     states: tuple[BlockStateSchema, ...] = ()
+    default_state: int | None = None
+    min_state_id: int | None = None
 
     def default_block(self) -> Block:
         if not self.states:
@@ -609,6 +612,7 @@ def _parse_state_schema(raw: dict[str, object]) -> BlockStateSchema:
         type=str(raw.get("type", "enum")),
         default=raw.get("default"),
         values=values,
+        num_values=int(raw["num_values"]) if "num_values" in raw else None,
     )
 
 
@@ -622,40 +626,54 @@ def _parse_block_def(raw: dict[str, object]) -> BlockDef:
         name=_normalize_name(str(raw["name"])),
         display_name=str(raw.get("displayName", raw["name"])),
         states=states,
+        default_state=int(raw["defaultState"]) if "defaultState" in raw else None,
+        min_state_id=int(raw["minStateId"]) if "minStateId" in raw else None,
     )
 
 
 def _coerce_state_value(schema: BlockStateSchema, value: object) -> object:
-    if schema.type == "bool":
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            low = value.lower()
-            if low == "true":
-                return True
-            if low == "false":
-                return False
-        raise ValueError(f"state '{schema.name}' expects true or false, got {value!r}")
-    if schema.type == "int":
-        if isinstance(value, bool):
-            raise ValueError(f"state '{schema.name}' expects an integer, got {value!r}")
-        try:
-            return int(value)  # type: ignore[arg-type]
-        except (TypeError, ValueError) as e:
-            raise ValueError(f"state '{schema.name}' expects an integer, got {value!r}") from e
-    return str(value).lower() if isinstance(value, str) else value
+    match schema.type:
+        case "bool":
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                low = value.lower()
+                if low == "true":
+                    return True
+                if low == "false":
+                    return False
+            raise ValueError(f"state '{schema.name}' expects true or false, got {value!r}")
+        case "int":
+            if isinstance(value, bool):
+                raise ValueError(f"state '{schema.name}' expects an integer, got {value!r}")
+            try:
+                return int(value)  # type: ignore[arg-type]
+            except (TypeError, ValueError) as e:
+                raise ValueError(f"state '{schema.name}' expects an integer, got {value!r}") from e
+        case "enum":
+            return str(value).lower() if isinstance(value, str) else value
+        case _:
+            return str(value).lower() if isinstance(value, str) else value
 
 
 def _validate_state_value(block_name: str, schema: BlockStateSchema, value: object,
                           version: str) -> object:
     value = _coerce_state_value(schema, value)
-    if schema.values and value not in schema.values:
-        allowed = ", ".join(str(v) for v in schema.values[:12])
-        suffix = "..." if len(schema.values) > 12 else ""
-        raise ValueError(
-            f"Block {block_name} state '{schema.name}'={value!r} is invalid for "
-            f"version {version}; expected one of: {allowed}{suffix}"
-        )
+    if schema.values:
+        if schema.type == "int":
+            try:
+                allowed_ints = [int(v) for v in schema.values]
+                if value in allowed_ints:
+                    return value
+            except (ValueError, TypeError):
+                pass
+        if value not in schema.values:
+            allowed = ", ".join(str(v) for v in schema.values[:12])
+            suffix = "..." if len(schema.values) > 12 else ""
+            raise ValueError(
+                f"Block {block_name} state '{schema.name}'={value!r} is invalid for "
+                f"version {version}; expected one of: {allowed}{suffix}"
+            )
     return value
 
 
@@ -753,17 +771,53 @@ class BlockRegistry:
             if strict:
                 _validate_states(bd, block.states, self.version)
             return Block(name=bd.name)
+        
         explicit = dict(block.states)
         if strict:
             explicit = dict(_validate_states(bd, block.states, self.version))
+            
+        unflattened_defaults = {}
+        if bd.default_state is not None and bd.min_state_id is not None:
+            offset = bd.default_state - bd.min_state_id
+            if offset >= 0:
+                for s in reversed(bd.states):
+                    n = len(s.values) if s.values else s.num_values if s.num_values is not None else 2 if s.type == "bool" else 1
+                    if n <= 0:
+                        n = 1
+                    
+                    val_idx = offset % n
+                    if s.values:
+                        val = s.values[val_idx]
+                    elif s.type == "bool":
+                        val = [True, False][val_idx]
+                    elif s.type == "int":
+                        val = val_idx
+                    else:
+                        val = ""
+                        
+                    unflattened_defaults[s.name] = val
+                    offset = offset // n
+
         for s in bd.states:
             if s.name not in explicit:
                 if s.default is None:
-                    raise ValueError(
-                        f"Block {bd.name} requires state '{s.name}' "
-                        f"(no default) for version {self.version}"
-                    )
-                explicit[s.name] = s.default
+                    if s.name in unflattened_defaults:
+                        explicit[s.name] = unflattened_defaults[s.name]
+                    else:
+                        match s.type:
+                            case "bool":
+                                explicit[s.name] = False
+                            case "int":
+                                try:
+                                    explicit[s.name] = int(s.values[0]) if s.values else 0
+                                except (ValueError, TypeError):
+                                    explicit[s.name] = s.values[0] if s.values else "0"
+                            case "enum":
+                                explicit[s.name] = s.values[0] if s.values else ""
+                            case _:
+                                explicit[s.name] = s.values[0] if s.values else ""
+                else:
+                    explicit[s.name] = s.default
             elif strict:
                 explicit[s.name] = _validate_state_value(bd.name, s, explicit[s.name], self.version)
         return Block(name=bd.name, states=tuple(sorted(explicit.items())))

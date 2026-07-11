@@ -140,8 +140,7 @@ def write_litematic(grid: VoxelGrid | ChunkedGrid, path: str | Path, *,
     else:
         palette_nbt, packed, _bits = _encode_dense(grid)
     n_longs = len(packed) // 8
-    longs = LongArray([int.from_bytes(packed[i * 8:(i + 1) * 8], "big", signed=True)
-                        for i in range(n_longs)])
+    longs = LongArray(np.frombuffer(packed, dtype='>i8'))
     root = Compound({
         "MinecraftDataVersion": Int(data_version),
         "Version": Int(5),
